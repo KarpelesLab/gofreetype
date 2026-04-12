@@ -57,7 +57,13 @@ func minimalCFFTables() []struct {
 	// indexToLocFormat at [50:52] are read.
 	head := make([]byte, 54)
 	binary.BigEndian.PutUint16(head[18:], 1000) // fUnitsPerEm
-	// bounds = 0, indexToLocFormat = 0, all zeroes are fine.
+	// Give a generous bounding box so face/raster allocates a mask large
+	// enough for test glyphs: xMin=-200, yMin=-200, xMax=1000, yMax=1000.
+	var xMin, yMin int16 = -200, -200
+	binary.BigEndian.PutUint16(head[36:], uint16(xMin))
+	binary.BigEndian.PutUint16(head[38:], uint16(yMin))
+	binary.BigEndian.PutUint16(head[40:], 1000)
+	binary.BigEndian.PutUint16(head[42:], 1000)
 
 	// maxp v0.5 = 6 bytes: version (0x00005000) + numGlyphs (1).
 	maxp := make([]byte, 6)
@@ -87,9 +93,9 @@ func minimalCFFTables() []struct {
 		0, 0, 0, 12, // offset to subtable
 	}, fmt0[:]...)
 
-	// CFF: placeholder bytes. In 1c.1 we only check the tag; parsing
-	// happens in 1c.2.
-	cff := []byte("CFF placeholder \x00")
+	// CFF: a minimal valid CFF v1 with one glyph whose charstring is just
+	// `endchar` (op 14).
+	cff := buildMinimalCFF()
 
 	return []struct {
 		tag  string
@@ -102,6 +108,98 @@ func minimalCFFTables() []struct {
 		{"hmtx", hmtx},
 		{"maxp", maxp},
 	}
+}
+
+// buildMinimalCFF constructs a valid CFF v1 table with one glyph whose
+// charstring is a bare `endchar`. Used by Parse tests so we don't have to
+// import cff-test-only helpers.
+func buildMinimalCFF() []byte {
+	encIdx := func(objs [][]byte) []byte {
+		count := len(objs)
+		if count == 0 {
+			return []byte{0, 0}
+		}
+		offsets := []int{1}
+		for _, o := range objs {
+			offsets = append(offsets, offsets[len(offsets)-1]+len(o))
+		}
+		offSize := 1
+		if offsets[count] > 255 {
+			offSize = 2
+		}
+		buf := []byte{byte(count >> 8), byte(count), byte(offSize)}
+		for _, o := range offsets {
+			for s := offSize - 1; s >= 0; s-- {
+				buf = append(buf, byte(o>>(8*s)))
+			}
+		}
+		for _, o := range objs {
+			buf = append(buf, o...)
+		}
+		return buf
+	}
+	// DICT int encoding for small non-negative values (0..107) is a single byte.
+	encInt := func(v int) []byte {
+		if v >= -107 && v <= 107 {
+			return []byte{byte(v + 139)}
+		}
+		// 28 short-int form: 3 bytes.
+		return []byte{28, byte(v >> 8), byte(v)}
+	}
+
+	empty := encIdx(nil)
+	nameIdx := encIdx([][]byte{[]byte("T")})
+	charStrings := encIdx([][]byte{{14}}) // endchar only
+
+	// Layout: header(4) + nameIdx + topIdx + strings(empty) + globalSubrs(empty) + charStrings + priv + localSubrs(empty).
+	// Iterate to stabilize offsets since they're embedded in the Top DICT.
+	priv := func(subrsOff int) []byte {
+		var b []byte
+		b = append(b, encInt(subrsOff)...)
+		b = append(b, 19) // Subrs
+		return b
+	}
+	privSize := len(priv(0))
+	pv := priv(privSize)
+
+	var topDict []byte
+	encTop := func(csOff, privOff int) []byte {
+		var b []byte
+		b = append(b, encInt(csOff)...)
+		b = append(b, 17) // CharStrings
+		b = append(b, encInt(privSize)...)
+		b = append(b, encInt(privOff)...)
+		b = append(b, 18) // Private
+		return b
+	}
+	csOff, privOff := 0, 0
+	for iter := 0; iter < 8; iter++ {
+		topDict = encTop(csOff, privOff)
+		topIdx := encIdx([][]byte{topDict})
+		hdr := 4
+		nameOff := hdr
+		topOff := nameOff + len(nameIdx)
+		stringsOff := topOff + len(topIdx)
+		globalSubrsOff := stringsOff + len(empty)
+		csNew := globalSubrsOff + len(empty)
+		privNew := csNew + len(charStrings)
+		if csNew == csOff && privNew == privOff {
+			break
+		}
+		csOff, privOff = csNew, privNew
+	}
+	topIdx := encIdx([][]byte{topDict})
+
+	var out []byte
+	out = append(out, 1, 0, 4, 2) // header
+	out = append(out, nameIdx...)
+	out = append(out, topIdx...)
+	out = append(out, empty...) // String INDEX
+	out = append(out, empty...) // Global Subrs INDEX
+	out = append(out, charStrings...)
+	out = append(out, pv...)
+	out = append(out, empty...) // Local Subrs INDEX
+	return out
 }
 
 func TestParseOpenTypeCFF(t *testing.T) {
@@ -119,11 +217,17 @@ func TestParseOpenTypeCFF(t *testing.T) {
 	if len(f.glyf) != 0 {
 		t.Error("expected f.glyf to be empty for an OTF font")
 	}
-	// GlyphBuf.Load on a CFF font should report UnsupportedError until the
-	// Phase 1c.4 work lands — glyph rendering is not yet wired up.
+	// GlyphBuf.Load for a CFF glyph whose charstring is only `endchar`
+	// should succeed and produce no segments.
 	g := &GlyphBuf{}
-	if err := g.Load(f, 64, 0, 0); err == nil {
-		t.Error("expected UnsupportedError from GlyphBuf.Load on CFF font")
+	if err := g.Load(f, 64, 0, 0); err != nil {
+		t.Errorf("GlyphBuf.Load on CFF: %v", err)
+	}
+	if len(g.Segments) != 0 {
+		t.Errorf("Segments: got %d, want 0", len(g.Segments))
+	}
+	if len(g.Points) != 0 {
+		t.Errorf("Points: got %d, want 0 for CFF", len(g.Points))
 	}
 }
 

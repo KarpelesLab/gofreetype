@@ -20,6 +20,7 @@ package truetype // import "github.com/KarpelesLab/gofreetype/truetype"
 import (
 	"fmt"
 
+	"github.com/KarpelesLab/gofreetype/cff"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -250,6 +251,9 @@ type Font struct {
 	// cff and cff2 are the raw CFF / CFF2 tables for OpenType fonts with
 	// PostScript outlines. Exactly one of glyf and (cff|cff2) is populated.
 	cff, cff2 []byte
+
+	// cffFont is the parsed CFF v1 container, populated only for CFF fonts.
+	cffFont *cff.Font
 
 	cmapIndexes []byte
 
@@ -1157,6 +1161,22 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 		return
 	}
 	f.parseOS2()
+
+	if f.kind == FontKindCFF {
+		cf, cffErr := cff.Parse(f.cff)
+		if cffErr != nil {
+			err = cffErr
+			return
+		}
+		f.cffFont = cf
+		// CFF fonts may not have numGlyphs in maxp v0.5 equal to the charstring
+		// count (they should, but some fonts are buggy). Prefer the authoritative
+		// CharStrings count.
+		if f.cffFont.NumGlyphs != 0 && f.nGlyph != f.cffFont.NumGlyphs {
+			f.nGlyph = f.cffFont.NumGlyphs
+		}
+	}
+
 	font = f
 	return
 }

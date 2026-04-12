@@ -9,6 +9,7 @@ import (
 	"image"
 	"math"
 
+	"github.com/KarpelesLab/gofreetype/cff"
 	"github.com/KarpelesLab/gofreetype/raster"
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
@@ -391,10 +392,14 @@ func (a *face) rasterize(index Index, fx, fy fixed.Int26_6) (v glyphCacheVal, ok
 	a.r.Clear()
 	pixOffset := a.paintOffset * a.maxw
 	clear(a.masks.Pix[pixOffset : pixOffset+a.maxw*a.maxh])
-	e0 := 0
-	for _, e1 := range a.glyphBuf.Ends {
-		a.drawContour(a.glyphBuf.Points[e0:e1], fx, fy)
-		e0 = e1
+	if a.f.kind == FontKindCFF {
+		a.drawCFFSegments(a.glyphBuf.Segments, fx, fy)
+	} else {
+		e0 := 0
+		for _, e1 := range a.glyphBuf.Ends {
+			a.drawContour(a.glyphBuf.Points[e0:e1], fx, fy)
+			e0 = e1
+		}
 	}
 	a.r.Rasterize(a.p)
 	return glyphCacheVal{
@@ -482,6 +487,38 @@ func (a *face) drawContour(ps []Point, dx, dy fixed.Int26_6) {
 		a.r.Add1(start)
 	} else {
 		a.r.Add2(q0, start)
+	}
+}
+
+// drawCFFSegments draws a CFF glyph's segments to the rasterizer, applying
+// the per-glyph (dx, dy) offset and flipping Y to match the raster's
+// Y-downward convention.
+func (a *face) drawCFFSegments(segs []CFFSegment, dx, dy fixed.Int26_6) {
+	var start fixed.Point26_6
+	contourOpen := false
+	flip := func(x, y fixed.Int26_6) fixed.Point26_6 {
+		return fixed.Point26_6{X: dx + x, Y: dy - y}
+	}
+	for _, s := range segs {
+		p := flip(s.X, s.Y)
+		switch s.Op {
+		case cff.SegMoveTo:
+			if contourOpen {
+				a.r.Add1(start)
+			}
+			a.r.Start(p)
+			start = p
+			contourOpen = true
+		case cff.SegLineTo:
+			a.r.Add1(p)
+		case cff.SegCubicTo:
+			c1 := flip(s.CX1, s.CY1)
+			c2 := flip(s.CX2, s.CY2)
+			a.r.Add3(c1, c2, p)
+		}
+	}
+	if contourOpen {
+		a.r.Add1(start)
 	}
 }
 

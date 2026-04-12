@@ -8,9 +8,20 @@ package truetype
 import (
 	"fmt"
 
+	"github.com/KarpelesLab/gofreetype/cff"
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )
+
+// CFFSegment is a path segment emitted by a CFF glyph load. Coordinates are
+// in 26.6 fixed-point pixel units, with Y increasing upwards (same
+// convention as TrueType's GlyphBuf.Points).
+type CFFSegment struct {
+	Op               cff.SegmentOp
+	X, Y             fixed.Int26_6
+	CX1, CY1         fixed.Int26_6
+	CX2, CY2         fixed.Int26_6
+}
 
 // TODO: implement VerticalHinting.
 
@@ -40,6 +51,11 @@ type GlyphBuf struct {
 	// consists of points Points[Ends[i-1]:Ends[i]], where Ends[-1] is
 	// interpreted to mean zero.
 	Ends []int
+
+	// Segments is populated instead of Points/Ends when the Font's Kind is
+	// FontKindCFF. CFF glyphs use cubic Béziers rather than TrueType's
+	// quadratics, so a different representation is needed.
+	Segments []CFFSegment
 
 	font    *Font
 	scale   fixed.Int26_6
@@ -96,8 +112,13 @@ func (g *GlyphBuf) Load(f *Font, scale fixed.Int26_6, i Index, h font.Hinting) e
 	g.phantomPoints = [4]Point{}
 	g.metricsSet = false
 
-	if f.kind != FontKindTrueType {
-		return UnsupportedError(fmt.Sprintf("glyph load for font kind %d", f.kind))
+	g.Segments = g.Segments[:0]
+
+	switch f.kind {
+	case FontKindCFF:
+		return g.loadCFF(f, scale, i)
+	case FontKindCFF2:
+		return UnsupportedError("CFF2 glyph loading not yet implemented")
 	}
 
 	if h != font.HintingNone {
@@ -525,4 +546,91 @@ func (g *GlyphBuf) addPhantomsAndScale(np0, np1 int, simple, adjust bool) {
 	p.X = (p.X + 32) &^ 63
 	p = &g.Points[len(g.Points)-1]
 	p.Y = (p.Y + 32) &^ 63
+}
+
+// loadCFF loads a CFF glyph into g. The output uses g.Segments (cubic-aware)
+// rather than g.Points/Ends (TrueType quadratic). Hinting is not applied —
+// CFF hinting needs its own interpreter which is a Phase 4 task.
+func (g *GlyphBuf) loadCFF(f *Font, scale fixed.Int26_6, i Index) error {
+	if f.cffFont == nil {
+		return UnsupportedError("CFF font lacks parsed container")
+	}
+	if int(i) >= len(f.cffFont.CharStrings) {
+		return FormatError(fmt.Sprintf("glyph index %d out of range (%d charstrings)", i, len(f.cffFont.CharStrings)))
+	}
+	glyph, err := f.cffFont.LoadGlyph(int(i))
+	if err != nil {
+		return err
+	}
+
+	// CFF charstring coordinates are in "design units". The FontMatrix maps
+	// them to em space; the outer em-to-pixel scaling is `scale / fUnitsPerEm`.
+	// For a typical CFF font with FontMatrix = (0.001, 0, 0, 0.001, 0, 0) and
+	// head.unitsPerEm = 1000, design units equal font units, so the composed
+	// scale is just `scale / fUnitsPerEm`.
+	m := f.cffFont.FontMatrix
+	// k is design-units-per-em, derived from |FontMatrix[0]| = 1/unitsPerEm.
+	invM0 := 1.0
+	if m[0] != 0 {
+		invM0 = 1.0 / m[0]
+	}
+	kx := float64(scale) / invM0
+	// Y axis: CFF has Y up; we store Y up in GlyphBuf to match TT, and the
+	// renderer flips it when drawing.
+	ky := kx
+	if m[3] != 0 {
+		invM3 := 1.0 / m[3]
+		ky = float64(scale) / invM3
+	}
+
+	toFixed := func(x, y float64) (fixed.Int26_6, fixed.Int26_6) {
+		return fixed.Int26_6(x * kx), fixed.Int26_6(y * ky)
+	}
+
+	g.Segments = g.Segments[:0]
+	for _, s := range glyph.Segments {
+		var out CFFSegment
+		out.Op = s.Op
+		out.X, out.Y = toFixed(s.X, s.Y)
+		if s.Op == cff.SegCubicTo {
+			out.CX1, out.CY1 = toFixed(s.CX1, s.CY1)
+			out.CX2, out.CY2 = toFixed(s.CX2, s.CY2)
+		}
+		g.Segments = append(g.Segments, out)
+	}
+
+	// Advance width: hmtx is shared with TT. Use the font's HMetric.
+	h := f.HMetric(scale, i)
+	g.AdvanceWidth = h.AdvanceWidth
+
+	// Bounds = control-point bbox of all segments.
+	if len(g.Segments) == 0 {
+		g.Bounds = fixed.Rectangle26_6{}
+	} else {
+		s0 := g.Segments[0]
+		g.Bounds.Min.X = s0.X
+		g.Bounds.Max.X = s0.X
+		g.Bounds.Min.Y = s0.Y
+		g.Bounds.Max.Y = s0.Y
+		extend := func(x, y fixed.Int26_6) {
+			if x < g.Bounds.Min.X {
+				g.Bounds.Min.X = x
+			} else if x > g.Bounds.Max.X {
+				g.Bounds.Max.X = x
+			}
+			if y < g.Bounds.Min.Y {
+				g.Bounds.Min.Y = y
+			} else if y > g.Bounds.Max.Y {
+				g.Bounds.Max.Y = y
+			}
+		}
+		for _, s := range g.Segments[1:] {
+			extend(s.X, s.Y)
+			if s.Op == cff.SegCubicTo {
+				extend(s.CX1, s.CY1)
+				extend(s.CX2, s.CY2)
+			}
+		}
+	}
+	return nil
 }
