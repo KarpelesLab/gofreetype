@@ -217,13 +217,17 @@ func (f *Font) parseCmap() error {
 		return err
 	}
 	offset = int(u32(f.cmap, offset+4))
-	if offset <= 0 || offset > len(f.cmap) {
+	cmapLen := len(f.cmap)
+	if offset <= 0 || offset+2 > cmapLen {
 		return FormatError("bad cmap offset")
 	}
 
 	cmapFormat := u16(f.cmap, offset)
 	switch cmapFormat {
 	case cmapFormat4:
+		if offset+8 > cmapLen {
+			return FormatError("cmap format 4 header truncated")
+		}
 		language := u16(f.cmap, offset+4)
 		if language != languageIndependent {
 			return UnsupportedError(fmt.Sprintf("language: %d", language))
@@ -234,6 +238,9 @@ func (f *Font) parseCmap() error {
 		}
 		segCount := segCountX2 / 2
 		offset += 14
+		if offset+segCount*8 > cmapLen {
+			return FormatError("cmap format 4 body truncated")
+		}
 		f.cm = make([]cm, segCount)
 		for i := 0; i < segCount; i++ {
 			f.cm[i].end = uint32(u16(f.cmap, offset))
@@ -256,6 +263,9 @@ func (f *Font) parseCmap() error {
 		return nil
 
 	case cmapFormat12:
+		if offset+16 > cmapLen {
+			return FormatError("cmap format 12 header truncated")
+		}
 		if u16(f.cmap, offset+2) != 0 {
 			return FormatError(fmt.Sprintf("cmap format: % x", f.cmap[offset:offset+4]))
 		}
@@ -269,6 +279,9 @@ func (f *Font) parseCmap() error {
 			return FormatError("inconsistent cmap length")
 		}
 		offset += 16
+		if uint64(offset)+12*uint64(nGroups) > uint64(cmapLen) {
+			return FormatError("cmap format 12 body truncated")
+		}
 		f.cm = make([]cm, nGroups)
 		for i := uint32(0); i < nGroups; i++ {
 			f.cm[i].start = u32(f.cmap, offset+0)
