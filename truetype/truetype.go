@@ -180,6 +180,17 @@ type cm struct {
 	start, end, delta, offset uint32
 }
 
+// cmapFormat identifies which cmap subtable format a Font was parsed from.
+type cmapFormat uint16
+
+const (
+	cmapFormatUnset  cmapFormat = 0xffff
+	cmapFormat0      cmapFormat = 0
+	cmapFormat4      cmapFormat = 4
+	cmapFormat6      cmapFormat = 6
+	cmapFormat12     cmapFormat = 12
+)
+
 // A Font represents a Truetype font.
 type Font struct {
 	// Tables sliced from the TTF data. The different tables are documented
@@ -189,6 +200,10 @@ type Font struct {
 	cmapIndexes []byte
 
 	// Cached values derived from the raw ttf data.
+	cmapFormat              cmapFormat
+	cmapFormat0Table        []byte   // 256 bytes, for format 0.
+	cmapFormat6FirstCode    uint16   // For format 6.
+	cmapFormat6GlyphIDArray []uint16 // For format 6.
 	cm                      []cm
 	locaOffsetFormat        int
 	nGlyph, nHMetric, nKern int
@@ -205,13 +220,10 @@ type Font struct {
 	maxTwilightPoints, maxStorage, maxFunctionDefs, maxStackElements uint16
 }
 
-func (f *Font) parseCmap() error {
-	const (
-		cmapFormat4         = 4
-		cmapFormat12        = 12
-		languageIndependent = 0
-	)
+const languageIndependent = 0
 
+func (f *Font) parseCmap() error {
+	f.cmapFormat = cmapFormatUnset
 	offset, _, err := parseSubtables(f.cmap, "cmap", 4, 8, nil)
 	if err != nil {
 		return err
@@ -222,76 +234,124 @@ func (f *Font) parseCmap() error {
 		return FormatError("bad cmap offset")
 	}
 
-	cmapFormat := u16(f.cmap, offset)
-	switch cmapFormat {
+	format := cmapFormat(u16(f.cmap, offset))
+	switch format {
+	case cmapFormat0:
+		return f.parseCmapFormat0(offset, cmapLen)
 	case cmapFormat4:
-		if offset+8 > cmapLen {
-			return FormatError("cmap format 4 header truncated")
-		}
-		language := u16(f.cmap, offset+4)
-		if language != languageIndependent {
-			return UnsupportedError(fmt.Sprintf("language: %d", language))
-		}
-		segCountX2 := int(u16(f.cmap, offset+6))
-		if segCountX2%2 == 1 {
-			return FormatError(fmt.Sprintf("bad segCountX2: %d", segCountX2))
-		}
-		segCount := segCountX2 / 2
-		offset += 14
-		if offset+segCount*8 > cmapLen {
-			return FormatError("cmap format 4 body truncated")
-		}
-		f.cm = make([]cm, segCount)
-		for i := 0; i < segCount; i++ {
-			f.cm[i].end = uint32(u16(f.cmap, offset))
-			offset += 2
-		}
-		offset += 2
-		for i := 0; i < segCount; i++ {
-			f.cm[i].start = uint32(u16(f.cmap, offset))
-			offset += 2
-		}
-		for i := 0; i < segCount; i++ {
-			f.cm[i].delta = uint32(u16(f.cmap, offset))
-			offset += 2
-		}
-		for i := 0; i < segCount; i++ {
-			f.cm[i].offset = uint32(u16(f.cmap, offset))
-			offset += 2
-		}
-		f.cmapIndexes = f.cmap[offset:]
-		return nil
-
+		return f.parseCmapFormat4(offset, cmapLen)
+	case cmapFormat6:
+		return f.parseCmapFormat6(offset, cmapLen)
 	case cmapFormat12:
-		if offset+16 > cmapLen {
-			return FormatError("cmap format 12 header truncated")
-		}
-		if u16(f.cmap, offset+2) != 0 {
-			return FormatError(fmt.Sprintf("cmap format: % x", f.cmap[offset:offset+4]))
-		}
-		length := u32(f.cmap, offset+4)
-		language := u32(f.cmap, offset+8)
-		if language != languageIndependent {
-			return UnsupportedError(fmt.Sprintf("language: %d", language))
-		}
-		nGroups := u32(f.cmap, offset+12)
-		if length != 12*nGroups+16 {
-			return FormatError("inconsistent cmap length")
-		}
-		offset += 16
-		if uint64(offset)+12*uint64(nGroups) > uint64(cmapLen) {
-			return FormatError("cmap format 12 body truncated")
-		}
-		f.cm = make([]cm, nGroups)
-		for i := uint32(0); i < nGroups; i++ {
-			f.cm[i].start = u32(f.cmap, offset+0)
-			f.cm[i].end = u32(f.cmap, offset+4)
-			f.cm[i].delta = u32(f.cmap, offset+8) - f.cm[i].start
-			offset += 12
-		}
-		return nil
+		return f.parseCmapFormat12(offset, cmapLen)
 	}
-	return UnsupportedError(fmt.Sprintf("cmap format: %d", cmapFormat))
+	return UnsupportedError(fmt.Sprintf("cmap format: %d", format))
+}
+
+func (f *Font) parseCmapFormat0(offset, cmapLen int) error {
+	if offset+262 > cmapLen {
+		return FormatError("cmap format 0 truncated")
+	}
+	if u16(f.cmap, offset+4) != languageIndependent {
+		return UnsupportedError(fmt.Sprintf("language: %d", u16(f.cmap, offset+4)))
+	}
+	f.cmapFormat = cmapFormat0
+	f.cmapFormat0Table = f.cmap[offset+6 : offset+262]
+	return nil
+}
+
+func (f *Font) parseCmapFormat4(offset, cmapLen int) error {
+	if offset+8 > cmapLen {
+		return FormatError("cmap format 4 header truncated")
+	}
+	language := u16(f.cmap, offset+4)
+	if language != languageIndependent {
+		return UnsupportedError(fmt.Sprintf("language: %d", language))
+	}
+	segCountX2 := int(u16(f.cmap, offset+6))
+	if segCountX2%2 == 1 {
+		return FormatError(fmt.Sprintf("bad segCountX2: %d", segCountX2))
+	}
+	segCount := segCountX2 / 2
+	offset += 14
+	if offset+segCount*8 > cmapLen {
+		return FormatError("cmap format 4 body truncated")
+	}
+	f.cm = make([]cm, segCount)
+	for i := 0; i < segCount; i++ {
+		f.cm[i].end = uint32(u16(f.cmap, offset))
+		offset += 2
+	}
+	offset += 2
+	for i := 0; i < segCount; i++ {
+		f.cm[i].start = uint32(u16(f.cmap, offset))
+		offset += 2
+	}
+	for i := 0; i < segCount; i++ {
+		f.cm[i].delta = uint32(u16(f.cmap, offset))
+		offset += 2
+	}
+	for i := 0; i < segCount; i++ {
+		f.cm[i].offset = uint32(u16(f.cmap, offset))
+		offset += 2
+	}
+	f.cmapIndexes = f.cmap[offset:]
+	f.cmapFormat = cmapFormat4
+	return nil
+}
+
+func (f *Font) parseCmapFormat6(offset, cmapLen int) error {
+	if offset+10 > cmapLen {
+		return FormatError("cmap format 6 header truncated")
+	}
+	language := u16(f.cmap, offset+4)
+	if language != languageIndependent {
+		return UnsupportedError(fmt.Sprintf("language: %d", language))
+	}
+	firstCode := u16(f.cmap, offset+6)
+	entryCount := int(u16(f.cmap, offset+8))
+	if offset+10+entryCount*2 > cmapLen {
+		return FormatError("cmap format 6 body truncated")
+	}
+	array := make([]uint16, entryCount)
+	for i := 0; i < entryCount; i++ {
+		array[i] = u16(f.cmap, offset+10+2*i)
+	}
+	f.cmapFormat6FirstCode = firstCode
+	f.cmapFormat6GlyphIDArray = array
+	f.cmapFormat = cmapFormat6
+	return nil
+}
+
+func (f *Font) parseCmapFormat12(offset, cmapLen int) error {
+	if offset+16 > cmapLen {
+		return FormatError("cmap format 12 header truncated")
+	}
+	if u16(f.cmap, offset+2) != 0 {
+		return FormatError(fmt.Sprintf("cmap format: % x", f.cmap[offset:offset+4]))
+	}
+	length := u32(f.cmap, offset+4)
+	language := u32(f.cmap, offset+8)
+	if language != languageIndependent {
+		return UnsupportedError(fmt.Sprintf("language: %d", language))
+	}
+	nGroups := u32(f.cmap, offset+12)
+	if length != 12*nGroups+16 {
+		return FormatError("inconsistent cmap length")
+	}
+	offset += 16
+	if uint64(offset)+12*uint64(nGroups) > uint64(cmapLen) {
+		return FormatError("cmap format 12 body truncated")
+	}
+	f.cm = make([]cm, nGroups)
+	for i := uint32(0); i < nGroups; i++ {
+		f.cm[i].start = u32(f.cmap, offset+0)
+		f.cm[i].end = u32(f.cmap, offset+4)
+		f.cm[i].delta = u32(f.cmap, offset+8) - f.cm[i].start
+		offset += 12
+	}
+	f.cmapFormat = cmapFormat12
+	return nil
 }
 
 func (f *Font) parseHead() error {
@@ -431,6 +491,22 @@ func (f *Font) FUnitsPerEm() int32 {
 // Index returns a Font's index for the given rune.
 func (f *Font) Index(x rune) Index {
 	c := uint32(x)
+	switch f.cmapFormat {
+	case cmapFormat0:
+		if c < 256 {
+			return Index(f.cmapFormat0Table[c])
+		}
+		return 0
+	case cmapFormat6:
+		if c < uint32(f.cmapFormat6FirstCode) {
+			return 0
+		}
+		i := int(c - uint32(f.cmapFormat6FirstCode))
+		if i >= len(f.cmapFormat6GlyphIDArray) {
+			return 0
+		}
+		return Index(f.cmapFormat6GlyphIDArray[i])
+	}
 	for i, j := 0, len(f.cm); i < j; {
 		h := i + (j-i)/2
 		cm := &f.cm[h]
