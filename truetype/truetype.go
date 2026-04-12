@@ -224,11 +224,32 @@ const (
 	cmapFormat14    cmapFormat = 14
 )
 
+// A FontKind identifies what kind of glyph outline data a Font carries.
+type FontKind int
+
+const (
+	// FontKindTrueType means the font has a "glyf" table (TrueType outlines).
+	FontKindTrueType FontKind = iota
+	// FontKindCFF means the font has a "CFF " table (Compact Font Format,
+	// Type 2 charstrings — the OpenType way to ship PostScript outlines).
+	FontKindCFF
+	// FontKindCFF2 means the font has a "CFF2" table (CFF v2, used by
+	// variable fonts).
+	FontKindCFF2
+)
+
 // A Font represents a Truetype font.
 type Font struct {
+	// kind tracks the glyph outline format (TrueType, CFF, or CFF2).
+	kind FontKind
+
 	// Tables sliced from the TTF data. The different tables are documented
 	// at http://developer.apple.com/fonts/TTRefMan/RM06/Chap6.html
 	cmap, cvt, fpgm, glyf, hdmx, head, hhea, hmtx, kern, loca, maxp, name, os2, prep, vmtx []byte
+
+	// cff and cff2 are the raw CFF / CFF2 tables for OpenType fonts with
+	// PostScript outlines. Exactly one of glyf and (cff|cff2) is populated.
+	cff, cff2 []byte
 
 	cmapIndexes []byte
 
@@ -770,14 +791,25 @@ func (f *Font) parseOS2() {
 }
 
 func (f *Font) parseMaxp() error {
-	if len(f.maxp) != 32 {
+	// Version 1.0 (TrueType) is 32 bytes; version 0.5 (CFF) is 6 bytes and
+	// only carries numGlyphs — the other fields are TT-hinter-specific.
+	switch len(f.maxp) {
+	case 6:
+		if f.kind == FontKindTrueType {
+			return FormatError("maxp v0.5 on a TrueType font")
+		}
+	case 32:
+		// fine
+	default:
 		return FormatError(fmt.Sprintf("bad maxp length: %d", len(f.maxp)))
 	}
 	f.nGlyph = int(u16(f.maxp, 4))
-	f.maxTwilightPoints = u16(f.maxp, 16)
-	f.maxStorage = u16(f.maxp, 18)
-	f.maxFunctionDefs = u16(f.maxp, 20)
-	f.maxStackElements = u16(f.maxp, 24)
+	if len(f.maxp) >= 32 {
+		f.maxTwilightPoints = u16(f.maxp, 16)
+		f.maxStorage = u16(f.maxp, 18)
+		f.maxFunctionDefs = u16(f.maxp, 20)
+		f.maxStackElements = u16(f.maxp, 24)
+	}
 	return nil
 }
 
@@ -804,6 +836,11 @@ func (f *Font) Bounds(scale fixed.Int26_6) fixed.Rectangle26_6 {
 // FUnitsPerEm returns the number of FUnits in a Font's em-square's side.
 func (f *Font) FUnitsPerEm() int32 {
 	return f.fUnitsPerEm
+}
+
+// Kind reports what outline format the Font carries (TrueType, CFF, or CFF2).
+func (f *Font) Kind() FontKind {
+	return f.kind
 }
 
 // Index returns a Font's index for the given rune.
@@ -1009,7 +1046,9 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 	magic, offset := u32(ttf, offset), offset+4
 	switch magic {
 	case 0x00010000:
-		// No-op.
+		// TrueType: no-op.
+	case 0x4F54544F:
+		// "OTTO" — OpenType font with CFF or CFF2 outlines.
 	case 0x74746366: // "ttcf" as a big-endian uint32.
 		if originalOffset != 0 {
 			err = FormatError("recursive TTC")
@@ -1083,10 +1122,23 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 			f.prep, err = readTable(ttf, ttf[x+8:x+16])
 		case "vmtx":
 			f.vmtx, err = readTable(ttf, ttf[x+8:x+16])
+		case "CFF ":
+			f.cff, err = readTable(ttf, ttf[x+8:x+16])
+		case "CFF2":
+			f.cff2, err = readTable(ttf, ttf[x+8:x+16])
 		}
 		if err != nil {
 			return
 		}
+	}
+	// Classify outline format before running format-specific sanity checks.
+	switch {
+	case f.cff2 != nil:
+		f.kind = FontKindCFF2
+	case f.cff != nil:
+		f.kind = FontKindCFF
+	default:
+		f.kind = FontKindTrueType
 	}
 	// Parse and sanity-check the TTF data.
 	if err = f.parseHead(); err != nil {

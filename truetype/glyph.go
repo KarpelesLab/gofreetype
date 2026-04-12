@@ -6,6 +6,8 @@
 package truetype
 
 import (
+	"fmt"
+
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )
@@ -93,6 +95,10 @@ func (g *GlyphBuf) Load(f *Font, scale fixed.Int26_6, i Index, h font.Hinting) e
 	g.pp1x = 0
 	g.phantomPoints = [4]Point{}
 	g.metricsSet = false
+
+	if f.kind != FontKindTrueType {
+		return UnsupportedError(fmt.Sprintf("glyph load for font kind %d", f.kind))
+	}
 
 	if h != font.HintingNone {
 		if err := g.hinter.init(f, scale); err != nil {
