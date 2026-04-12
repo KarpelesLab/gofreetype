@@ -176,6 +176,11 @@ type indexCacheEntry struct {
 }
 
 // NewFace returns a new font.Face for the given Font.
+//
+// The returned Face is not safe for concurrent use by multiple goroutines.
+// Callers that need concurrent text rendering should create separate Faces.
+//
+// The Font itself is safe for concurrent use after parsing.
 func NewFace(f *Font, opts *Options) font.Face {
 	a := &face{
 		f:          f,
@@ -185,6 +190,7 @@ func NewFace(f *Font, opts *Options) font.Face {
 	}
 	a.subPixelX, a.subPixelBiasX, a.subPixelMaskX = opts.subPixelsX()
 	a.subPixelY, a.subPixelBiasY, a.subPixelMaskY = opts.subPixelsY()
+	a.advanceCache = make(map[rune]fixed.Int26_6)
 
 	// Fill the cache with invalid entries. Valid glyph cache entries have fx
 	// and fy in the range [0, 64). Valid index cache entries have rune >= 0.
@@ -229,8 +235,7 @@ type face struct {
 	maxh          int
 	glyphBuf      GlyphBuf
 	indexCache    [indexCacheLen]indexCacheEntry
-
-	// TODO: clip rectangle?
+	advanceCache  map[rune]fixed.Int26_6
 }
 
 const indexCacheLen = 256
@@ -342,10 +347,15 @@ func (a *face) GlyphBounds(r rune) (bounds fixed.Rectangle26_6, advance fixed.In
 }
 
 func (a *face) GlyphAdvance(r rune) (advance fixed.Int26_6, ok bool) {
-	if err := a.glyphBuf.Load(a.f, a.scale, a.index(r), a.hinting); err != nil {
+	if adv, cached := a.advanceCache[r]; cached {
+		return adv, a.index(r) != 0
+	}
+	idx := a.index(r)
+	if err := a.glyphBuf.Load(a.f, a.scale, idx, a.hinting); err != nil {
 		return 0, false
 	}
-	return a.glyphBuf.AdvanceWidth, true
+	a.advanceCache[r] = a.glyphBuf.AdvanceWidth
+	return a.glyphBuf.AdvanceWidth, idx != 0
 }
 
 // rasterize returns the advance width, integer-pixel offset to render at, and
