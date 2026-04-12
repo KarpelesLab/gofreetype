@@ -134,25 +134,33 @@ func parseSubtables(table []byte, name string, offset, size int, pred func([]byt
 		return 0, 0, FormatError(name + " too short")
 	}
 	ok := false
+	bestPriority := 0
 	for i := 0; i < nSubtables; i, offset = i+1, offset+size {
 		if pred != nil && !pred(table[offset:]) {
 			continue
 		}
-		// We read the 16-bit Platform ID and 16-bit Platform Specific ID as a single uint32.
-		// All values are big-endian.
 		pidPsid := u32(table, offset)
-		// We prefer the Unicode cmap encoding. Failing to find that, we fall
-		// back onto the Microsoft cmap encoding.
-		if pidPsid == unicodeEncodingBMPOnly || pidPsid == unicodeEncodingFull {
+		var priority int
+		switch pidPsid {
+		case unicodeEncodingFull:
+			priority = 5
+		case microsoftUCS4Encoding:
+			priority = 4
+		case unicodeEncodingBMPOnly:
+			priority = 3
+		case microsoftUCS2Encoding:
+			priority = 2
+		case microsoftSymbolEncoding:
+			priority = 1
+		default:
+			continue
+		}
+		if priority > bestPriority {
 			bestOffset, bestPID, ok = offset, pidPsid>>16, true
-			break
-
-		} else if pidPsid == microsoftSymbolEncoding ||
-			pidPsid == microsoftUCS2Encoding ||
-			pidPsid == microsoftUCS4Encoding {
-
-			bestOffset, bestPID, ok = offset, pidPsid>>16, true
-			// We don't break out of the for loop, so that Unicode can override Microsoft.
+			bestPriority = priority
+			if priority == 5 {
+				break
+			}
 		}
 	}
 	if !ok {
