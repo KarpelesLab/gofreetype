@@ -185,8 +185,13 @@ type Font struct {
 	locaOffsetFormat        int
 	nGlyph, nHMetric, nKern int
 	fUnitsPerEm             int32
-	ascent                  int32               // In FUnits.
-	descent                 int32               // In FUnits; typically negative.
+	ascent                  int32 // In FUnits.
+	descent                 int32 // In FUnits; typically negative.
+	lineGap                 int32 // In FUnits.
+	xHeight                 int32 // In FUnits; from OS/2 table v2+.
+	capHeight               int32 // In FUnits; from OS/2 table v2+.
+	caretSlopeRise          int32 // From hhea.
+	caretSlopeRun           int32 // From hhea.
 	bounds                  fixed.Rectangle26_6 // In FUnits.
 	// Values from the maxp section.
 	maxTwilightPoints, maxStorage, maxFunctionDefs, maxStackElements uint16
@@ -294,6 +299,9 @@ func (f *Font) parseHhea() error {
 	}
 	f.ascent = int32(int16(u16(f.hhea, 4)))
 	f.descent = int32(int16(u16(f.hhea, 6)))
+	f.lineGap = int32(int16(u16(f.hhea, 8)))
+	f.caretSlopeRise = int32(int16(u16(f.hhea, 18)))
+	f.caretSlopeRun = int32(int16(u16(f.hhea, 20)))
 	f.nHMetric = int(u16(f.hhea, 34))
 	if 4*f.nHMetric+2*(f.nGlyph-f.nHMetric) != len(f.hmtx) {
 		return FormatError(fmt.Sprintf("bad hmtx length: %d", len(f.hmtx)))
@@ -349,6 +357,17 @@ func (f *Font) parseKern() error {
 		return FormatError("bad kern table length")
 	}
 	return nil
+}
+
+func (f *Font) parseOS2() {
+	if len(f.os2) < 2 {
+		return
+	}
+	version := u16(f.os2, 0)
+	if version >= 2 && len(f.os2) >= 90 {
+		f.xHeight = int32(int16(u16(f.os2, 86)))
+		f.capHeight = int32(int16(u16(f.os2, 88)))
+	}
 }
 
 func (f *Font) parseMaxp() error {
@@ -648,6 +667,7 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 	if err = f.parseHhea(); err != nil {
 		return
 	}
+	f.parseOS2()
 	font = f
 	return
 }

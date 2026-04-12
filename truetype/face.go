@@ -260,9 +260,15 @@ func (a *face) Metrics() font.Metrics {
 	scale := float64(a.scale)
 	fupe := float64(a.f.FUnitsPerEm())
 	return font.Metrics{
-		Height:  a.scale,
-		Ascent:  fixed.Int26_6(math.Ceil(scale * float64(+a.f.ascent) / fupe)),
-		Descent: fixed.Int26_6(math.Ceil(scale * float64(-a.f.descent) / fupe)),
+		Height:    fixed.Int26_6(math.Ceil(scale * float64(a.f.ascent-a.f.descent+a.f.lineGap) / fupe)),
+		Ascent:    fixed.Int26_6(math.Ceil(scale * float64(+a.f.ascent) / fupe)),
+		Descent:   fixed.Int26_6(math.Ceil(scale * float64(-a.f.descent) / fupe)),
+		XHeight:   fixed.Int26_6(math.Ceil(scale * float64(a.f.xHeight) / fupe)),
+		CapHeight: fixed.Int26_6(math.Ceil(scale * float64(a.f.capHeight) / fupe)),
+		CaretSlope: image.Point{
+			X: int(a.f.caretSlopeRun),
+			Y: int(a.f.caretSlopeRise),
+		},
 	}
 }
 
