@@ -184,11 +184,13 @@ type cm struct {
 type cmapFormat uint16
 
 const (
-	cmapFormatUnset  cmapFormat = 0xffff
-	cmapFormat0      cmapFormat = 0
-	cmapFormat4      cmapFormat = 4
-	cmapFormat6      cmapFormat = 6
-	cmapFormat12     cmapFormat = 12
+	cmapFormatUnset cmapFormat = 0xffff
+	cmapFormat0     cmapFormat = 0
+	cmapFormat4     cmapFormat = 4
+	cmapFormat6     cmapFormat = 6
+	cmapFormat10    cmapFormat = 10
+	cmapFormat12    cmapFormat = 12
+	cmapFormat13    cmapFormat = 13
 )
 
 // A Font represents a Truetype font.
@@ -200,11 +202,13 @@ type Font struct {
 	cmapIndexes []byte
 
 	// Cached values derived from the raw ttf data.
-	cmapFormat              cmapFormat
-	cmapFormat0Table        []byte   // 256 bytes, for format 0.
-	cmapFormat6FirstCode    uint16   // For format 6.
-	cmapFormat6GlyphIDArray []uint16 // For format 6.
-	cm                      []cm
+	cmapFormat               cmapFormat
+	cmapFormat0Table         []byte   // 256 bytes, for format 0.
+	cmapFormat6FirstCode     uint16   // For format 6.
+	cmapFormat6GlyphIDArray  []uint16 // For format 6.
+	cmapFormat10FirstCode    uint32   // For format 10.
+	cmapFormat10GlyphIDArray []uint16 // For format 10.
+	cm                       []cm
 	locaOffsetFormat        int
 	nGlyph, nHMetric, nKern int
 	fUnitsPerEm             int32
@@ -242,8 +246,12 @@ func (f *Font) parseCmap() error {
 		return f.parseCmapFormat4(offset, cmapLen)
 	case cmapFormat6:
 		return f.parseCmapFormat6(offset, cmapLen)
+	case cmapFormat10:
+		return f.parseCmapFormat10(offset, cmapLen)
 	case cmapFormat12:
 		return f.parseCmapFormat12(offset, cmapLen)
+	case cmapFormat13:
+		return f.parseCmapFormat13(offset, cmapLen)
 	}
 	return UnsupportedError(fmt.Sprintf("cmap format: %d", format))
 }
@@ -351,6 +359,79 @@ func (f *Font) parseCmapFormat12(offset, cmapLen int) error {
 		offset += 12
 	}
 	f.cmapFormat = cmapFormat12
+	return nil
+}
+
+// parseCmapFormat10 parses a "Trimmed array" subtable — a 32-bit
+// counterpart of format 6, used for fonts whose non-BMP codepoints are
+// contiguous.
+func (f *Font) parseCmapFormat10(offset, cmapLen int) error {
+	if offset+20 > cmapLen {
+		return FormatError("cmap format 10 header truncated")
+	}
+	// u16[0..4]: format (10), reserved (0).
+	// u32[4..8]: length.
+	// u32[8..12]: language.
+	// u32[12..16]: startCharCode.
+	// u32[16..20]: numChars.
+	if u16(f.cmap, offset+2) != 0 {
+		return FormatError(fmt.Sprintf("cmap format: % x", f.cmap[offset:offset+4]))
+	}
+	language := u32(f.cmap, offset+8)
+	if language != languageIndependent {
+		return UnsupportedError(fmt.Sprintf("language: %d", language))
+	}
+	firstCode := u32(f.cmap, offset+12)
+	numChars := u32(f.cmap, offset+16)
+	if uint64(offset)+20+2*uint64(numChars) > uint64(cmapLen) {
+		return FormatError("cmap format 10 body truncated")
+	}
+	array := make([]uint16, numChars)
+	for i := uint32(0); i < numChars; i++ {
+		array[i] = u16(f.cmap, offset+20+2*int(i))
+	}
+	f.cmapFormat10FirstCode = firstCode
+	f.cmapFormat10GlyphIDArray = array
+	f.cmapFormat = cmapFormat10
+	return nil
+}
+
+// parseCmapFormat13 parses a "Many-to-one range mappings" subtable. Every
+// code point in a range maps to the same glyph id, as opposed to format 12
+// where the glyph id increments with the code point. Used by Last Resort
+// style fonts.
+func (f *Font) parseCmapFormat13(offset, cmapLen int) error {
+	if offset+16 > cmapLen {
+		return FormatError("cmap format 13 header truncated")
+	}
+	if u16(f.cmap, offset+2) != 0 {
+		return FormatError(fmt.Sprintf("cmap format: % x", f.cmap[offset:offset+4]))
+	}
+	length := u32(f.cmap, offset+4)
+	language := u32(f.cmap, offset+8)
+	if language != languageIndependent {
+		return UnsupportedError(fmt.Sprintf("language: %d", language))
+	}
+	nGroups := u32(f.cmap, offset+12)
+	if length != 12*nGroups+16 {
+		return FormatError("inconsistent cmap length")
+	}
+	offset += 16
+	if uint64(offset)+12*uint64(nGroups) > uint64(cmapLen) {
+		return FormatError("cmap format 13 body truncated")
+	}
+	// Reuse the cm slice. For format 13 every code point in a group maps to
+	// the same glyph id, so we store glyphID in .delta and set a sentinel in
+	// .offset so that Index can distinguish format 13 ranges. But since we
+	// dispatch by f.cmapFormat, a plain format-13 lookup path is simpler.
+	f.cm = make([]cm, nGroups)
+	for i := uint32(0); i < nGroups; i++ {
+		f.cm[i].start = u32(f.cmap, offset+0)
+		f.cm[i].end = u32(f.cmap, offset+4)
+		f.cm[i].delta = u32(f.cmap, offset+8)
+		offset += 12
+	}
+	f.cmapFormat = cmapFormat13
 	return nil
 }
 
@@ -506,6 +587,28 @@ func (f *Font) Index(x rune) Index {
 			return 0
 		}
 		return Index(f.cmapFormat6GlyphIDArray[i])
+	case cmapFormat10:
+		if c < f.cmapFormat10FirstCode {
+			return 0
+		}
+		i := int(c - f.cmapFormat10FirstCode)
+		if i >= len(f.cmapFormat10GlyphIDArray) {
+			return 0
+		}
+		return Index(f.cmapFormat10GlyphIDArray[i])
+	case cmapFormat13:
+		for i, j := 0, len(f.cm); i < j; {
+			h := i + (j-i)/2
+			cm := &f.cm[h]
+			if c < cm.start {
+				j = h
+			} else if cm.end < c {
+				i = h + 1
+			} else {
+				return Index(cm.delta)
+			}
+		}
+		return 0
 	}
 	for i, j := 0, len(f.cm); i < j; {
 		h := i + (j-i)/2

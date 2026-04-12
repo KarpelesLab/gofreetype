@@ -105,10 +105,21 @@ func buildFormat4Body(segs []struct{ start, end, delta uint16 }) []byte {
 
 // buildFormat12Body builds a cmap format 12 subtable body.
 func buildFormat12Body(groups []struct{ start, end, startGID uint32 }) []byte {
+	return buildFormat12Or13Body(12, groups)
+}
+
+// buildFormat13Body builds a cmap format 13 subtable body. The layout is
+// identical to format 12 on disk; only the semantics of startGID differ
+// (shared by every codepoint in the range rather than incrementing).
+func buildFormat13Body(groups []struct{ start, end, startGID uint32 }) []byte {
+	return buildFormat12Or13Body(13, groups)
+}
+
+func buildFormat12Or13Body(format uint16, groups []struct{ start, end, startGID uint32 }) []byte {
 	n := len(groups)
 	length := 16 + 12*n
 	b := make([]byte, length)
-	binary.BigEndian.PutUint16(b[0:], 12)
+	binary.BigEndian.PutUint16(b[0:], format)
 	binary.BigEndian.PutUint16(b[2:], 0) // reserved
 	binary.BigEndian.PutUint32(b[4:], uint32(length))
 	binary.BigEndian.PutUint32(b[8:], 0) // language
@@ -119,6 +130,22 @@ func buildFormat12Body(groups []struct{ start, end, startGID uint32 }) []byte {
 		binary.BigEndian.PutUint32(b[off+4:], g.end)
 		binary.BigEndian.PutUint32(b[off+8:], g.startGID)
 		off += 12
+	}
+	return b
+}
+
+// buildFormat10Body builds a cmap format 10 subtable body.
+func buildFormat10Body(firstCode uint32, glyphIDs []uint16) []byte {
+	length := 20 + 2*len(glyphIDs)
+	b := make([]byte, length)
+	binary.BigEndian.PutUint16(b[0:], 10)
+	binary.BigEndian.PutUint16(b[2:], 0) // reserved
+	binary.BigEndian.PutUint32(b[4:], uint32(length))
+	binary.BigEndian.PutUint32(b[8:], 0) // language
+	binary.BigEndian.PutUint32(b[12:], firstCode)
+	binary.BigEndian.PutUint32(b[16:], uint32(len(glyphIDs)))
+	for i, g := range glyphIDs {
+		binary.BigEndian.PutUint16(b[20+2*i:], g)
 	}
 	return b
 }
@@ -218,6 +245,58 @@ func TestCmapFormat12(t *testing.T) {
 	}
 	if got, want := f.Index(0x1F602), Index(202); got != want {
 		t.Errorf("Index(emoji): got %d, want %d", got, want)
+	}
+}
+
+func TestCmapFormat10(t *testing.T) {
+	// Map U+1F600..U+1F604 to glyph ids 500..504.
+	body := buildFormat10Body(0x1F600, []uint16{500, 501, 502, 503, 504})
+	f, err := parseCmapOnly(mkCmap(0, 4, body))
+	if err != nil {
+		t.Fatalf("parseCmap: %v", err)
+	}
+	if f.cmapFormat != cmapFormat10 {
+		t.Errorf("cmapFormat: got %d, want %d", f.cmapFormat, cmapFormat10)
+	}
+	for i, r := range []rune{0x1F600, 0x1F601, 0x1F602, 0x1F603, 0x1F604} {
+		if got, want := f.Index(r), Index(500+i); got != want {
+			t.Errorf("Index(%U): got %d, want %d", r, got, want)
+		}
+	}
+	if got := f.Index(0x1F5FF); got != 0 {
+		t.Errorf("Index below firstCode: got %d, want 0", got)
+	}
+	if got := f.Index(0x1F605); got != 0 {
+		t.Errorf("Index past numChars: got %d, want 0", got)
+	}
+}
+
+func TestCmapFormat13(t *testing.T) {
+	// A "Last Resort"-style mapping: every codepoint in a range points to
+	// the same placeholder glyph.
+	body := buildFormat13Body([]struct{ start, end, startGID uint32 }{
+		{start: 'A', end: 'Z', startGID: 7},    // every ASCII letter -> 7
+		{start: 0x0400, end: 0x04FF, startGID: 8}, // every Cyrillic glyph -> 8
+	})
+	f, err := parseCmapOnly(mkCmap(0, 4, body))
+	if err != nil {
+		t.Fatalf("parseCmap: %v", err)
+	}
+	if f.cmapFormat != cmapFormat13 {
+		t.Errorf("cmapFormat: got %d, want %d", f.cmapFormat, cmapFormat13)
+	}
+	for _, r := range []rune{'A', 'M', 'Z'} {
+		if got, want := f.Index(r), Index(7); got != want {
+			t.Errorf("Index(%q): got %d, want %d", r, got, want)
+		}
+	}
+	for _, r := range []rune{0x0400, 0x0450, 0x04FF} {
+		if got, want := f.Index(r), Index(8); got != want {
+			t.Errorf("Index(%U): got %d, want %d", r, got, want)
+		}
+	}
+	if got := f.Index('a'); got != 0 {
+		t.Errorf("Index('a') outside any range: got %d, want 0", got)
 	}
 }
 
