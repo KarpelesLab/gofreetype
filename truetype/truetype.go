@@ -57,11 +57,12 @@ const (
 	// A 32-bit encoding consists of a most-significant 16-bit Platform ID and a
 	// least-significant 16-bit Platform Specific ID. The magic numbers are
 	// specified at https://www.microsoft.com/typography/otspec/name.htm
-	unicodeEncodingBMPOnly  = 0x00000003 // PID = 0 (Unicode), PSID = 3 (Unicode 2.0 BMP Only)
-	unicodeEncodingFull     = 0x00000004 // PID = 0 (Unicode), PSID = 4 (Unicode 2.0 Full Repertoire)
-	microsoftSymbolEncoding = 0x00030000 // PID = 3 (Microsoft), PSID = 0 (Symbol)
-	microsoftUCS2Encoding   = 0x00030001 // PID = 3 (Microsoft), PSID = 1 (UCS-2)
-	microsoftUCS4Encoding   = 0x0003000a // PID = 3 (Microsoft), PSID = 10 (UCS-4)
+	unicodeEncodingBMPOnly       = 0x00000003 // PID = 0 (Unicode), PSID = 3 (Unicode 2.0 BMP Only)
+	unicodeEncodingFull          = 0x00000004 // PID = 0 (Unicode), PSID = 4 (Unicode 2.0 Full Repertoire)
+	unicodeEncodingVariation     = 0x00000005 // PID = 0 (Unicode), PSID = 5 (Variation Sequences)
+	microsoftSymbolEncoding      = 0x00030000 // PID = 3 (Microsoft), PSID = 0 (Symbol)
+	microsoftUCS2Encoding        = 0x00030001 // PID = 3 (Microsoft), PSID = 1 (UCS-2)
+	microsoftUCS4Encoding        = 0x0003000a // PID = 3 (Microsoft), PSID = 10 (UCS-4)
 )
 
 // An HMetric holds the horizontal metrics of a single glyph.
@@ -180,6 +181,35 @@ type cm struct {
 	start, end, delta, offset uint32
 }
 
+// variationSelector describes one entry in a cmap format-14 subtable.
+// Each variation selector codepoint combines with a base codepoint to
+// select a specific glyph (a variant presentation of the base).
+type variationSelector struct {
+	// selector is the variation-selector codepoint, e.g. U+FE0E (text
+	// presentation) or U+E0100 (Ideographic Variation Selector 17).
+	selector uint32
+
+	// defaultRanges lists base-codepoint ranges where combining with
+	// this selector means "use the glyph the primary cmap would return".
+	// Each entry is the inclusive range [start, start+additionalCount].
+	defaultRanges []defaultUVSRange
+
+	// nonDefaultMappings lists base codepoints that, combined with this
+	// selector, map to a specific (non-default) glyph id. Sorted by
+	// unicodeValue so Index can binary-search.
+	nonDefaultMappings []nonDefaultUVSMapping
+}
+
+type defaultUVSRange struct {
+	start uint32 // inclusive start
+	end   uint32 // inclusive end
+}
+
+type nonDefaultUVSMapping struct {
+	unicodeValue uint32
+	glyphID      uint16
+}
+
 // cmapFormat identifies which cmap subtable format a Font was parsed from.
 type cmapFormat uint16
 
@@ -191,6 +221,7 @@ const (
 	cmapFormat10    cmapFormat = 10
 	cmapFormat12    cmapFormat = 12
 	cmapFormat13    cmapFormat = 13
+	cmapFormat14    cmapFormat = 14
 )
 
 // A Font represents a Truetype font.
@@ -208,6 +239,7 @@ type Font struct {
 	cmapFormat6GlyphIDArray  []uint16 // For format 6.
 	cmapFormat10FirstCode    uint32   // For format 10.
 	cmapFormat10GlyphIDArray []uint16 // For format 10.
+	variationSelectors       []variationSelector
 	cm                       []cm
 	locaOffsetFormat        int
 	nGlyph, nHMetric, nKern int
@@ -226,34 +258,103 @@ type Font struct {
 
 const languageIndependent = 0
 
+// findCmapSubtables scans the cmap table for the best primary subtable and
+// for any format-14 Unicode Variation Sequences subtable. Both offsets are
+// returned relative to the start of the cmap data. Missing subtables are
+// reported with zero offsets; the caller must treat a zero primary offset
+// as an unsupported-encoding error.
+func (f *Font) findCmapSubtables() (primaryOffset, variationOffset int, err error) {
+	if len(f.cmap) < 4 {
+		return 0, 0, FormatError("cmap too short")
+	}
+	nSubtables := int(u16(f.cmap, 2))
+	if len(f.cmap) < 4+8*nSubtables {
+		return 0, 0, FormatError("cmap too short")
+	}
+	bestPriority := 0
+	for i := 0; i < nSubtables; i++ {
+		recordOff := 4 + 8*i
+		pidPsid := u32(f.cmap, recordOff)
+		subOff := int(u32(f.cmap, recordOff+4))
+		if subOff <= 0 || subOff+2 > len(f.cmap) {
+			continue
+		}
+		if pidPsid == unicodeEncodingVariation {
+			if cmapFormat(u16(f.cmap, subOff)) == cmapFormat14 {
+				variationOffset = subOff
+			}
+			continue
+		}
+		var priority int
+		switch pidPsid {
+		case unicodeEncodingFull:
+			priority = 5
+		case microsoftUCS4Encoding:
+			priority = 4
+		case unicodeEncodingBMPOnly:
+			priority = 3
+		case microsoftUCS2Encoding:
+			priority = 2
+		case microsoftSymbolEncoding:
+			priority = 1
+		default:
+			continue
+		}
+		if priority > bestPriority {
+			primaryOffset = subOff
+			bestPriority = priority
+		}
+	}
+	if primaryOffset == 0 {
+		return 0, 0, UnsupportedError("cmap encoding")
+	}
+	return primaryOffset, variationOffset, nil
+}
+
 func (f *Font) parseCmap() error {
 	f.cmapFormat = cmapFormatUnset
-	offset, _, err := parseSubtables(f.cmap, "cmap", 4, 8, nil)
+	primaryOffset, variationOffset, err := f.findCmapSubtables()
 	if err != nil {
 		return err
 	}
-	offset = int(u32(f.cmap, offset+4))
 	cmapLen := len(f.cmap)
-	if offset <= 0 || offset+2 > cmapLen {
-		return FormatError("bad cmap offset")
-	}
 
-	format := cmapFormat(u16(f.cmap, offset))
+	format := cmapFormat(u16(f.cmap, primaryOffset))
 	switch format {
 	case cmapFormat0:
-		return f.parseCmapFormat0(offset, cmapLen)
+		if err := f.parseCmapFormat0(primaryOffset, cmapLen); err != nil {
+			return err
+		}
 	case cmapFormat4:
-		return f.parseCmapFormat4(offset, cmapLen)
+		if err := f.parseCmapFormat4(primaryOffset, cmapLen); err != nil {
+			return err
+		}
 	case cmapFormat6:
-		return f.parseCmapFormat6(offset, cmapLen)
+		if err := f.parseCmapFormat6(primaryOffset, cmapLen); err != nil {
+			return err
+		}
 	case cmapFormat10:
-		return f.parseCmapFormat10(offset, cmapLen)
+		if err := f.parseCmapFormat10(primaryOffset, cmapLen); err != nil {
+			return err
+		}
 	case cmapFormat12:
-		return f.parseCmapFormat12(offset, cmapLen)
+		if err := f.parseCmapFormat12(primaryOffset, cmapLen); err != nil {
+			return err
+		}
 	case cmapFormat13:
-		return f.parseCmapFormat13(offset, cmapLen)
+		if err := f.parseCmapFormat13(primaryOffset, cmapLen); err != nil {
+			return err
+		}
+	default:
+		return UnsupportedError(fmt.Sprintf("cmap format: %d", format))
 	}
-	return UnsupportedError(fmt.Sprintf("cmap format: %d", format))
+
+	if variationOffset != 0 {
+		if err := f.parseCmapFormat14(variationOffset, cmapLen); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (f *Font) parseCmapFormat0(offset, cmapLen int) error {
@@ -433,6 +534,142 @@ func (f *Font) parseCmapFormat13(offset, cmapLen int) error {
 	}
 	f.cmapFormat = cmapFormat13
 	return nil
+}
+
+// parseCmapFormat14 parses a Unicode Variation Sequences subtable.
+func (f *Font) parseCmapFormat14(offset, cmapLen int) error {
+	if offset+10 > cmapLen {
+		return FormatError("cmap format 14 header truncated")
+	}
+	length := u32(f.cmap, offset+2)
+	end := uint64(offset) + uint64(length)
+	if length < 10 || end > uint64(cmapLen) {
+		return FormatError("cmap format 14 length inconsistent")
+	}
+	numSelectors := u32(f.cmap, offset+6)
+	recordsStart := offset + 10
+	if uint64(recordsStart)+11*uint64(numSelectors) > end {
+		return FormatError("cmap format 14 records truncated")
+	}
+	selectors := make([]variationSelector, 0, numSelectors)
+	for i := uint32(0); i < numSelectors; i++ {
+		rec := recordsStart + 11*int(i)
+		selector := u24(f.cmap, rec)
+		defaultUVSOffset := u32(f.cmap, rec+3)
+		nonDefaultUVSOffset := u32(f.cmap, rec+7)
+		vs := variationSelector{selector: selector}
+
+		if defaultUVSOffset != 0 {
+			dOff := offset + int(defaultUVSOffset)
+			if dOff+4 > cmapLen {
+				return FormatError("cmap format 14 default UVS truncated")
+			}
+			n := u32(f.cmap, dOff)
+			if uint64(dOff)+4+4*uint64(n) > uint64(cmapLen) {
+				return FormatError("cmap format 14 default UVS body truncated")
+			}
+			vs.defaultRanges = make([]defaultUVSRange, n)
+			for j := uint32(0); j < n; j++ {
+				recOff := dOff + 4 + 4*int(j)
+				start := u24(f.cmap, recOff)
+				additional := uint32(f.cmap[recOff+3])
+				vs.defaultRanges[j] = defaultUVSRange{
+					start: start,
+					end:   start + additional,
+				}
+			}
+		}
+
+		if nonDefaultUVSOffset != 0 {
+			nOff := offset + int(nonDefaultUVSOffset)
+			if nOff+4 > cmapLen {
+				return FormatError("cmap format 14 non-default UVS truncated")
+			}
+			n := u32(f.cmap, nOff)
+			if uint64(nOff)+4+5*uint64(n) > uint64(cmapLen) {
+				return FormatError("cmap format 14 non-default UVS body truncated")
+			}
+			vs.nonDefaultMappings = make([]nonDefaultUVSMapping, n)
+			for j := uint32(0); j < n; j++ {
+				recOff := nOff + 4 + 5*int(j)
+				vs.nonDefaultMappings[j] = nonDefaultUVSMapping{
+					unicodeValue: u24(f.cmap, recOff),
+					glyphID:      u16(f.cmap, recOff+3),
+				}
+			}
+		}
+
+		selectors = append(selectors, vs)
+	}
+	f.variationSelectors = selectors
+	return nil
+}
+
+// u24 returns the big-endian 24-bit integer at b[i:].
+func u24(b []byte, i int) uint32 {
+	return uint32(b[i])<<16 | uint32(b[i+1])<<8 | uint32(b[i+2])
+}
+
+// IndexWithVariation returns a Font's glyph index for the given base
+// codepoint combined with the given Unicode variation selector.
+//
+// If the font provides a specific non-default glyph for (base, vs), that
+// glyph's index is returned. If (base, vs) is in the default-UVS set, or
+// if no variation-selector subtable is present, IndexWithVariation falls
+// back to Index(base). If (base, vs) is explicitly rejected by the font
+// (not covered by either the default or non-default set), 0 is returned.
+func (f *Font) IndexWithVariation(base, vs rune) Index {
+	sel := uint32(vs)
+	if len(f.variationSelectors) == 0 || sel == 0 {
+		return f.Index(base)
+	}
+	// Find the variation selector by binary search; selectors are spec-ordered.
+	i, j := 0, len(f.variationSelectors)
+	for i < j {
+		h := i + (j-i)/2
+		s := f.variationSelectors[h].selector
+		if s < sel {
+			i = h + 1
+		} else if s > sel {
+			j = h
+		} else {
+			i = h
+			j = h + 1
+			break
+		}
+	}
+	if i >= len(f.variationSelectors) || f.variationSelectors[i].selector != sel {
+		return f.Index(base)
+	}
+	entry := &f.variationSelectors[i]
+	c := uint32(base)
+
+	// Non-default mappings win: the base + selector has a specific glyph.
+	if n := len(entry.nonDefaultMappings); n > 0 {
+		lo, hi := 0, n
+		for lo < hi {
+			h := lo + (hi-lo)/2
+			uv := entry.nonDefaultMappings[h].unicodeValue
+			if uv < c {
+				lo = h + 1
+			} else if uv > c {
+				hi = h
+			} else {
+				return Index(entry.nonDefaultMappings[h].glyphID)
+			}
+		}
+	}
+
+	// Default ranges: (base + selector) means "use the primary cmap glyph".
+	for _, r := range entry.defaultRanges {
+		if c >= r.start && c <= r.end {
+			return f.Index(base)
+		}
+	}
+
+	// The selector exists but the base is not covered — spec says to fall
+	// back to Index(base), which matches FreeType's behavior.
+	return f.Index(base)
 }
 
 func (f *Font) parseHead() error {

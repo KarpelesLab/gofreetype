@@ -134,6 +134,70 @@ func buildFormat12Or13Body(format uint16, groups []struct{ start, end, startGID 
 	return b
 }
 
+// buildFormat14Body builds a cmap format 14 (UVS) subtable body.
+// Each VSRecord can list default ranges (base codepoints that use the
+// primary cmap) and non-default mappings (base -> specific glyph id).
+func buildFormat14Body(records []struct {
+	selector   uint32
+	defaults   []defaultUVSRange
+	nonDefault []nonDefaultUVSMapping
+}) []byte {
+	nSelectors := len(records)
+	headerLen := 10
+	recordsLen := 11 * nSelectors
+
+	// Layout: [header][records][tables...]
+	//   tables are the default / non-default sub-tables referenced by records.
+	var tables []byte
+	type tableOffset struct{ def, nondef uint32 }
+	offsets := make([]tableOffset, nSelectors)
+	cursor := uint32(headerLen + recordsLen)
+	for i, r := range records {
+		if len(r.defaults) > 0 {
+			offsets[i].def = cursor
+			tbl := make([]byte, 4+4*len(r.defaults))
+			binary.BigEndian.PutUint32(tbl[0:], uint32(len(r.defaults)))
+			for j, d := range r.defaults {
+				tbl[4+4*j] = byte(d.start >> 16)
+				tbl[4+4*j+1] = byte(d.start >> 8)
+				tbl[4+4*j+2] = byte(d.start)
+				tbl[4+4*j+3] = byte(d.end - d.start) // additionalCount
+			}
+			tables = append(tables, tbl...)
+			cursor += uint32(len(tbl))
+		}
+		if len(r.nonDefault) > 0 {
+			offsets[i].nondef = cursor
+			tbl := make([]byte, 4+5*len(r.nonDefault))
+			binary.BigEndian.PutUint32(tbl[0:], uint32(len(r.nonDefault)))
+			for j, m := range r.nonDefault {
+				tbl[4+5*j] = byte(m.unicodeValue >> 16)
+				tbl[4+5*j+1] = byte(m.unicodeValue >> 8)
+				tbl[4+5*j+2] = byte(m.unicodeValue)
+				binary.BigEndian.PutUint16(tbl[4+5*j+3:], m.glyphID)
+			}
+			tables = append(tables, tbl...)
+			cursor += uint32(len(tbl))
+		}
+	}
+
+	total := int(cursor)
+	b := make([]byte, total)
+	binary.BigEndian.PutUint16(b[0:], 14)
+	binary.BigEndian.PutUint32(b[2:], uint32(total))
+	binary.BigEndian.PutUint32(b[6:], uint32(nSelectors))
+	for i, r := range records {
+		off := headerLen + 11*i
+		b[off] = byte(r.selector >> 16)
+		b[off+1] = byte(r.selector >> 8)
+		b[off+2] = byte(r.selector)
+		binary.BigEndian.PutUint32(b[off+3:], offsets[i].def)
+		binary.BigEndian.PutUint32(b[off+7:], offsets[i].nondef)
+	}
+	copy(b[headerLen+recordsLen:], tables)
+	return b
+}
+
 // buildFormat10Body builds a cmap format 10 subtable body.
 func buildFormat10Body(firstCode uint32, glyphIDs []uint16) []byte {
 	length := 20 + 2*len(glyphIDs)
@@ -297,6 +361,88 @@ func TestCmapFormat13(t *testing.T) {
 	}
 	if got := f.Index('a'); got != 0 {
 		t.Errorf("Index('a') outside any range: got %d, want 0", got)
+	}
+}
+
+func TestCmapFormat14(t *testing.T) {
+	// Primary subtable (format 12): map 'A'..'Z' -> 1..26, and U+2603 (snowman) -> 100.
+	primary := buildFormat12Body([]struct{ start, end, startGID uint32 }{
+		{start: 'A', end: 'Z', startGID: 1},
+		{start: 0x2603, end: 0x2603, startGID: 100},
+	})
+	// Format 14 subtable: selector U+FE0E (text presentation) maps snowman
+	// to a specific text-variant glyph id (300); selector U+FE0F (emoji)
+	// defaults snowman to the primary cmap glyph.
+	vs14 := buildFormat14Body([]struct {
+		selector   uint32
+		defaults   []defaultUVSRange
+		nonDefault []nonDefaultUVSMapping
+	}{
+		{
+			selector:   0xFE0E,
+			nonDefault: []nonDefaultUVSMapping{{unicodeValue: 0x2603, glyphID: 300}},
+		},
+		{
+			selector: 0xFE0F,
+			defaults: []defaultUVSRange{{start: 0x2603, end: 0x2603}},
+		},
+	})
+	cmap := mkCmapMulti([]struct {
+		pid, psid uint16
+		body      []byte
+	}{
+		{0, 4, primary}, // Unicode Full primary
+		{0, 5, vs14},    // Unicode Variation Sequences secondary
+	})
+	f, err := parseCmapOnly(cmap)
+	if err != nil {
+		t.Fatalf("parseCmap: %v", err)
+	}
+	if len(f.variationSelectors) != 2 {
+		t.Fatalf("variationSelectors: got %d, want 2", len(f.variationSelectors))
+	}
+
+	// Baseline: the primary still works.
+	if got, want := f.Index(0x2603), Index(100); got != want {
+		t.Errorf("Index(snowman): got %d, want %d", got, want)
+	}
+
+	// Non-default mapping: FE0E overrides the primary glyph.
+	if got, want := f.IndexWithVariation(0x2603, 0xFE0E), Index(300); got != want {
+		t.Errorf("IndexWithVariation(snowman, FE0E): got %d, want %d", got, want)
+	}
+
+	// Default mapping: FE0F falls through to the primary.
+	if got, want := f.IndexWithVariation(0x2603, 0xFE0F), Index(100); got != want {
+		t.Errorf("IndexWithVariation(snowman, FE0F): got %d, want %d", got, want)
+	}
+
+	// Unknown selector falls back to Index(base).
+	if got, want := f.IndexWithVariation(0x2603, 0xE0100), Index(100); got != want {
+		t.Errorf("IndexWithVariation(snowman, unknown VS): got %d, want %d", got, want)
+	}
+
+	// IndexWithVariation with selector 0 is the same as Index.
+	if got, want := f.IndexWithVariation('A', 0), Index(1); got != want {
+		t.Errorf("IndexWithVariation('A', 0): got %d, want %d", got, want)
+	}
+}
+
+func TestCmapFormat14NoPrimary(t *testing.T) {
+	// A font with only a format-14 subtable (no primary encoding) must
+	// report an "cmap encoding" unsupported error — format 14 alone is
+	// meaningless.
+	vs14 := buildFormat14Body([]struct {
+		selector   uint32
+		defaults   []defaultUVSRange
+		nonDefault []nonDefaultUVSMapping
+	}{
+		{selector: 0xFE0E, nonDefault: []nonDefaultUVSMapping{{unicodeValue: 0x2603, glyphID: 300}}},
+	})
+	cmap := mkCmap(0, 5, vs14)
+	_, err := parseCmapOnly(cmap)
+	if err == nil {
+		t.Fatal("expected error for cmap with only a format-14 subtable, got nil")
 	}
 }
 
