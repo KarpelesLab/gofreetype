@@ -274,7 +274,7 @@ func (f *Font) parseCmapFormat4(offset, cmapLen int) error {
 	}
 	segCount := segCountX2 / 2
 	offset += 14
-	if offset+segCount*8 > cmapLen {
+	if offset+segCount*8+2 > cmapLen {
 		return FormatError("cmap format 4 body truncated")
 	}
 	f.cm = make([]cm, segCount)
