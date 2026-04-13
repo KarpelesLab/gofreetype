@@ -25,6 +25,7 @@ import (
 	"github.com/KarpelesLab/gofreetype/gdef"
 	"github.com/KarpelesLab/gofreetype/gpos"
 	"github.com/KarpelesLab/gofreetype/gsub"
+	"github.com/KarpelesLab/gofreetype/varfont"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -263,6 +264,9 @@ type Font struct {
 	// Color font tables, all optional.
 	cpal, colr, cbdt, cblc, sbix, svg []byte
 
+	// Variable-font tables, all optional.
+	fvar, avar, gvar []byte
+
 	// cffFont is the parsed CFF v1 container, populated only for CFF fonts.
 	cffFont *cff.Font
 
@@ -278,6 +282,14 @@ type Font struct {
 	cblcTable *ftcolor.CBLC
 	sbixTable *ftcolor.Sbix
 	svgTable  *ftcolor.SVG
+
+	// Optional parsed variable-font tables.
+	fvarTable *varfont.FVar
+	avarTable *varfont.AVar
+	gvarTable *varfont.GVar
+	// variationCoords holds the current normalized axis coordinates
+	// (len == len(fvarTable.Axes)). All zero = default instance.
+	variationCoords []float64
 
 	cmapIndexes []byte
 
@@ -895,6 +907,54 @@ func (f *Font) Sbix() *ftcolor.Sbix { return f.sbixTable }
 // SVG returns the parsed SVG (SVG glyph) table, or nil if absent.
 func (f *Font) SVG() *ftcolor.SVG { return f.svgTable }
 
+// FVar returns the parsed fvar (font variations) table, or nil if absent.
+func (f *Font) FVar() *varfont.FVar { return f.fvarTable }
+
+// AVar returns the parsed avar (axis variations) table, or nil if absent.
+func (f *Font) AVar() *varfont.AVar { return f.avarTable }
+
+// GVar returns the parsed gvar (glyph variations) table, or nil if absent.
+func (f *Font) GVar() *varfont.GVar { return f.gvarTable }
+
+// IsVariable reports whether the font has variable-font data. Variable
+// fonts apply per-axis deltas to glyph outlines at load time.
+func (f *Font) IsVariable() bool { return f.fvarTable != nil && f.gvarTable != nil }
+
+// SetVariation sets the user-space value for the named axis. Unknown
+// axis tags are silently ignored so a caller can probe with common tags
+// (e.g. "wght", "wdth") without first inspecting the axis list.
+//
+// The internal normalized-coordinate vector is recomputed; subsequent
+// GlyphBuf.Load calls interpolate via gvar.
+func (f *Font) SetVariation(axisTag string, value float64) {
+	if f.fvarTable == nil {
+		return
+	}
+	tag := varfont.MakeTag(axisTag)
+	for i, ax := range f.fvarTable.Axes {
+		if ax.Tag != tag {
+			continue
+		}
+		clamped := ax.Clamp(value)
+		norm := ax.NormalizeAxisValue(clamped)
+		if f.avarTable != nil {
+			norm = f.avarTable.Remap(i, norm)
+		}
+		if i >= len(f.variationCoords) {
+			return
+		}
+		f.variationCoords[i] = norm
+		return
+	}
+}
+
+// NormalizedVariationCoords returns the current normalized axis coords
+// (one per fvar axis). Callers should treat this as read-only; use
+// SetVariation to change it.
+func (f *Font) NormalizedVariationCoords() []float64 {
+	return f.variationCoords
+}
+
 // Index returns a Font's index for the given rune.
 func (f *Font) Index(x rune) Index {
 	c := uint32(x)
@@ -1207,6 +1267,12 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 			f.sbix, err = readTable(ttf, ttf[x+8:x+16])
 		case "SVG ":
 			f.svg, err = readTable(ttf, ttf[x+8:x+16])
+		case "fvar":
+			f.fvar, err = readTable(ttf, ttf[x+8:x+16])
+		case "avar":
+			f.avar, err = readTable(ttf, ttf[x+8:x+16])
+		case "gvar":
+			f.gvar, err = readTable(ttf, ttf[x+8:x+16])
 		}
 		if err != nil {
 			return
@@ -1295,6 +1361,22 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 	if len(f.svg) > 0 {
 		if sv, svErr := ftcolor.ParseSVG(f.svg); svErr == nil {
 			f.svgTable = sv
+		}
+	}
+	if len(f.fvar) > 0 {
+		if fv, fvErr := varfont.ParseFVar(f.fvar); fvErr == nil {
+			f.fvarTable = fv
+			f.variationCoords = make([]float64, len(fv.Axes))
+		}
+	}
+	if len(f.avar) > 0 {
+		if av, avErr := varfont.ParseAVar(f.avar); avErr == nil {
+			f.avarTable = av
+		}
+	}
+	if len(f.gvar) > 0 {
+		if gv, gvErr := varfont.ParseGVar(f.gvar); gvErr == nil {
+			f.gvarTable = gv
 		}
 	}
 

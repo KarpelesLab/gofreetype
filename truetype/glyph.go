@@ -129,6 +129,11 @@ func (g *GlyphBuf) Load(f *Font, scale fixed.Int26_6, i Index, h font.Hinting) e
 	if err := g.load(0, i, true); err != nil {
 		return err
 	}
+	// Apply gvar variations, if any. We operate on the post-scale Points
+	// because that's where the outline ends up; gvar deltas are in FUnits
+	// so we scale them with the same scale/fUnitsPerEm factor the TT loader
+	// used.
+	g.applyGVarDeltas(f, int(i), scale)
 	// TODO: this selection of either g.pp1x or g.phantomPoints[0].X isn't ideal,
 	// and should be cleaned up once we have all the testScaling tests passing,
 	// plus additional tests for Freetype-Go's bounding boxes matching C Freetype's.
@@ -546,6 +551,47 @@ func (g *GlyphBuf) addPhantomsAndScale(np0, np1 int, simple, adjust bool) {
 	p.X = (p.X + 32) &^ 63
 	p = &g.Points[len(g.Points)-1]
 	p.Y = (p.Y + 32) &^ 63
+}
+
+// applyGVarDeltas applies gvar point deltas for glyph `gid` to g.Points,
+// using the Font's current variation coordinates. FUnit deltas are
+// converted to the same scaled space as Points.
+func (g *GlyphBuf) applyGVarDeltas(f *Font, gid int, scale fixed.Int26_6) {
+	if f.gvarTable == nil || f.variationCoords == nil {
+		return
+	}
+	// All-zero coords = default instance, nothing to do.
+	allZero := true
+	for _, c := range f.variationCoords {
+		if c != 0 {
+			allZero = false
+			break
+		}
+	}
+	if allZero {
+		return
+	}
+	// numOutlinePoints excludes the four phantom points that Load appends.
+	numOutlinePoints := len(g.Points) - 4
+	if numOutlinePoints < 0 {
+		return
+	}
+	deltas := f.gvarTable.ApplyDeltas(gid, f.variationCoords, numOutlinePoints)
+	if deltas == nil {
+		return
+	}
+	// Scale factor to convert FUnit deltas to scaled coords. The TT loader
+	// multiplies raw FUnit values by (scale / fUnitsPerEm) when building
+	// Points (the multiplication happens inside scale_point(); scale is
+	// the em-height in 26.6 pixels).
+	if f.fUnitsPerEm == 0 {
+		return
+	}
+	sx := float64(scale) / float64(f.fUnitsPerEm)
+	for i := 0; i < len(g.Points) && i < len(deltas); i++ {
+		g.Points[i].X += fixed.Int26_6(deltas[i].X * sx)
+		g.Points[i].Y += fixed.Int26_6(deltas[i].Y * sx)
+	}
 }
 
 // loadCFF loads a CFF glyph into g. The output uses g.Segments (cubic-aware)
