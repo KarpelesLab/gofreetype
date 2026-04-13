@@ -21,6 +21,9 @@ import (
 	"fmt"
 
 	"github.com/KarpelesLab/gofreetype/cff"
+	"github.com/KarpelesLab/gofreetype/gdef"
+	"github.com/KarpelesLab/gofreetype/gpos"
+	"github.com/KarpelesLab/gofreetype/gsub"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -252,8 +255,18 @@ type Font struct {
 	// PostScript outlines. Exactly one of glyf and (cff|cff2) is populated.
 	cff, cff2 []byte
 
+	// OpenType layout tables, all optional. They describe the text-shaping
+	// pipeline (substitution, positioning, glyph classification).
+	gdef, gpos, gsub []byte
+
 	// cffFont is the parsed CFF v1 container, populated only for CFF fonts.
 	cffFont *cff.Font
+
+	// Optional parsed OT Layout tables. nil when the corresponding raw
+	// table is absent or failed to parse.
+	gdefTable *gdef.Table
+	gposTable *gpos.Table
+	gsubTable *gsub.Table
 
 	cmapIndexes []byte
 
@@ -847,6 +860,15 @@ func (f *Font) Kind() FontKind {
 	return f.kind
 }
 
+// GDEF returns the parsed GDEF table, or nil if absent.
+func (f *Font) GDEF() *gdef.Table { return f.gdefTable }
+
+// GSUB returns the parsed GSUB table, or nil if absent.
+func (f *Font) GSUB() *gsub.Table { return f.gsubTable }
+
+// GPOS returns the parsed GPOS table, or nil if absent.
+func (f *Font) GPOS() *gpos.Table { return f.gposTable }
+
 // Index returns a Font's index for the given rune.
 func (f *Font) Index(x rune) Index {
 	c := uint32(x)
@@ -941,6 +963,17 @@ func printable(r uint16) byte {
 		return byte(r)
 	}
 	return '?'
+}
+
+// UnscaledHMetric returns the horizontal metrics for the given glyph in
+// raw font design units (FUnits). The advance width is the value stored
+// directly in the hmtx table; the left side bearing is signed.
+//
+// Use HMetric when you need the metrics scaled for a particular pixel
+// size; UnscaledHMetric is the right call when working in a font-unit
+// coordinate system (e.g. inside a shaper).
+func (f *Font) UnscaledHMetric(i Index) HMetric {
+	return f.unscaledHMetric(i)
 }
 
 // unscaledHMetric returns the unscaled horizontal metrics for the glyph with
@@ -1130,6 +1163,12 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 			f.cff, err = readTable(ttf, ttf[x+8:x+16])
 		case "CFF2":
 			f.cff2, err = readTable(ttf, ttf[x+8:x+16])
+		case "GDEF":
+			f.gdef, err = readTable(ttf, ttf[x+8:x+16])
+		case "GPOS":
+			f.gpos, err = readTable(ttf, ttf[x+8:x+16])
+		case "GSUB":
+			f.gsub, err = readTable(ttf, ttf[x+8:x+16])
 		}
 		if err != nil {
 			return
@@ -1174,6 +1213,25 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 		// CharStrings count.
 		if f.cffFont.NumGlyphs != 0 && f.nGlyph != f.cffFont.NumGlyphs {
 			f.nGlyph = f.cffFont.NumGlyphs
+		}
+	}
+
+	// OpenType layout tables are optional. A parse failure on any of them
+	// should not block loading the font — the shaper package will simply
+	// see a nil table and fall back to an unshaped glyph pipeline.
+	if len(f.gdef) > 0 {
+		if gd, gdefErr := gdef.Parse(f.gdef); gdefErr == nil {
+			f.gdefTable = gd
+		}
+	}
+	if len(f.gsub) > 0 {
+		if gs, gsubErr := gsub.Parse(f.gsub); gsubErr == nil {
+			f.gsubTable = gs
+		}
+	}
+	if len(f.gpos) > 0 {
+		if gp, gposErr := gpos.Parse(f.gpos); gposErr == nil {
+			f.gposTable = gp
 		}
 	}
 
