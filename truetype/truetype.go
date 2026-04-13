@@ -261,7 +261,7 @@ type Font struct {
 	gdef, gpos, gsub []byte
 
 	// Color font tables, all optional.
-	cpal, colr []byte
+	cpal, colr, cbdt, cblc, sbix, svg []byte
 
 	// cffFont is the parsed CFF v1 container, populated only for CFF fonts.
 	cffFont *cff.Font
@@ -275,6 +275,9 @@ type Font struct {
 	// Optional parsed color tables.
 	cpalTable *ftcolor.CPAL
 	colrTable *ftcolor.COLR
+	cblcTable *ftcolor.CBLC
+	sbixTable *ftcolor.Sbix
+	svgTable  *ftcolor.SVG
 
 	cmapIndexes []byte
 
@@ -883,6 +886,15 @@ func (f *Font) CPAL() *ftcolor.CPAL { return f.cpalTable }
 // COLR returns the parsed COLR color layer table, or nil if absent.
 func (f *Font) COLR() *ftcolor.COLR { return f.colrTable }
 
+// CBLC returns the parsed CBDT/CBLC color bitmap table, or nil if absent.
+func (f *Font) CBLC() *ftcolor.CBLC { return f.cblcTable }
+
+// Sbix returns the parsed sbix bitmap table, or nil if absent.
+func (f *Font) Sbix() *ftcolor.Sbix { return f.sbixTable }
+
+// SVG returns the parsed SVG (SVG glyph) table, or nil if absent.
+func (f *Font) SVG() *ftcolor.SVG { return f.svgTable }
+
 // Index returns a Font's index for the given rune.
 func (f *Font) Index(x rune) Index {
 	c := uint32(x)
@@ -1187,6 +1199,14 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 			f.cpal, err = readTable(ttf, ttf[x+8:x+16])
 		case "COLR":
 			f.colr, err = readTable(ttf, ttf[x+8:x+16])
+		case "CBDT":
+			f.cbdt, err = readTable(ttf, ttf[x+8:x+16])
+		case "CBLC":
+			f.cblc, err = readTable(ttf, ttf[x+8:x+16])
+		case "sbix":
+			f.sbix, err = readTable(ttf, ttf[x+8:x+16])
+		case "SVG ":
+			f.svg, err = readTable(ttf, ttf[x+8:x+16])
 		}
 		if err != nil {
 			return
@@ -1260,6 +1280,21 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 	if len(f.colr) > 0 {
 		if cr, colrErr := ftcolor.ParseCOLR(f.colr); colrErr == nil {
 			f.colrTable = cr
+		}
+	}
+	if len(f.cbdt) > 0 && len(f.cblc) > 0 {
+		if cb, cbErr := ftcolor.ParseCBLC(f.cblc, f.cbdt); cbErr == nil {
+			f.cblcTable = cb
+		}
+	}
+	if len(f.sbix) > 0 {
+		if sb, sbErr := ftcolor.ParseSbix(f.sbix, f.nGlyph); sbErr == nil {
+			f.sbixTable = sb
+		}
+	}
+	if len(f.svg) > 0 {
+		if sv, svErr := ftcolor.ParseSVG(f.svg); svErr == nil {
+			f.svgTable = sv
 		}
 	}
 
