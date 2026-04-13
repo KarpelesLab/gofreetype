@@ -265,7 +265,7 @@ type Font struct {
 	cpal, colr, cbdt, cblc, sbix, svg []byte
 
 	// Variable-font tables, all optional.
-	fvar, avar, gvar []byte
+	fvar, avar, gvar, hvar, mvar []byte
 
 	// cffFont is the parsed CFF v1 container, populated only for CFF fonts.
 	cffFont *cff.Font
@@ -287,6 +287,8 @@ type Font struct {
 	fvarTable *varfont.FVar
 	avarTable *varfont.AVar
 	gvarTable *varfont.GVar
+	hvarTable *varfont.HVAR
+	mvarTable *varfont.MVAR
 	// variationCoords holds the current normalized axis coordinates
 	// (len == len(fvarTable.Axes)). All zero = default instance.
 	variationCoords []float64
@@ -916,6 +918,13 @@ func (f *Font) AVar() *varfont.AVar { return f.avarTable }
 // GVar returns the parsed gvar (glyph variations) table, or nil if absent.
 func (f *Font) GVar() *varfont.GVar { return f.gvarTable }
 
+// HVAR returns the parsed HVAR (horizontal metric variations) table, or
+// nil if absent.
+func (f *Font) HVAR() *varfont.HVAR { return f.hvarTable }
+
+// MVAR returns the parsed MVAR (metric variations) table, or nil if absent.
+func (f *Font) MVAR() *varfont.MVAR { return f.mvarTable }
+
 // IsVariable reports whether the font has variable-font data. Variable
 // fonts apply per-axis deltas to glyph outlines at load time.
 func (f *Font) IsVariable() bool { return f.fvarTable != nil && f.gvarTable != nil }
@@ -1055,11 +1064,23 @@ func printable(r uint16) byte {
 // raw font design units (FUnits). The advance width is the value stored
 // directly in the hmtx table; the left side bearing is signed.
 //
+// For variable fonts, the HVAR table is consulted at the Font's current
+// variation coordinates so the advance width reflects any per-axis
+// variation the font declares. Calling SetVariation will change future
+// UnscaledHMetric results.
+//
 // Use HMetric when you need the metrics scaled for a particular pixel
 // size; UnscaledHMetric is the right call when working in a font-unit
 // coordinate system (e.g. inside a shaper).
 func (f *Font) UnscaledHMetric(i Index) HMetric {
-	return f.unscaledHMetric(i)
+	h := f.unscaledHMetric(i)
+	if f.hvarTable != nil && len(f.variationCoords) > 0 {
+		delta := f.hvarTable.AdvanceWidthDelta(uint16(i), f.variationCoords)
+		if delta != 0 {
+			h.AdvanceWidth += fixed.Int26_6(delta)
+		}
+	}
+	return h
 }
 
 // unscaledHMetric returns the unscaled horizontal metrics for the glyph with
@@ -1273,6 +1294,10 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 			f.avar, err = readTable(ttf, ttf[x+8:x+16])
 		case "gvar":
 			f.gvar, err = readTable(ttf, ttf[x+8:x+16])
+		case "HVAR":
+			f.hvar, err = readTable(ttf, ttf[x+8:x+16])
+		case "MVAR":
+			f.mvar, err = readTable(ttf, ttf[x+8:x+16])
 		}
 		if err != nil {
 			return
@@ -1377,6 +1402,16 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 	if len(f.gvar) > 0 {
 		if gv, gvErr := varfont.ParseGVar(f.gvar); gvErr == nil {
 			f.gvarTable = gv
+		}
+	}
+	if len(f.hvar) > 0 {
+		if hv, hvErr := varfont.ParseHVAR(f.hvar); hvErr == nil {
+			f.hvarTable = hv
+		}
+	}
+	if len(f.mvar) > 0 {
+		if mv, mvErr := varfont.ParseMVAR(f.mvar); mvErr == nil {
+			f.mvarTable = mv
 		}
 	}
 
