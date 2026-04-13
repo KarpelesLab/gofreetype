@@ -3,24 +3,23 @@
 // FreeType License or the GNU General Public License version 2 (or
 // any later version), both of which can be found in the LICENSE file.
 
-package gsub
+package gpos
 
 import "github.com/KarpelesLab/gofreetype/layout"
 
-// SequenceLookupRecord re-exports the layout type so callers can use the
-// gsub package without importing layout just for this.
+// SequenceLookupRecord re-exports the layout type for caller convenience.
 type SequenceLookupRecord = layout.SequenceLookupRecord
 
-// MatchContext tries to match a GSUB Type-5 Context rule starting at
-// position `start` in `glyphs`. Returns the nested lookup actions and the
-// number of input glyphs consumed on match.
+// MatchContext tries to match a GPOS Type-7 Context rule at position
+// `start` in `glyphs`. Returns the nested positioning-lookup actions and
+// the number of input glyphs consumed on match.
 func (t *Table) MatchContext(lookupIndex uint16, glyphs []uint16, start int) ([]SequenceLookupRecord, int, bool) {
 	if int(lookupIndex) >= len(t.Lookups) {
 		return nil, 0, false
 	}
 	lk := t.Lookups[lookupIndex]
 	actualType, subtables := resolveExtension(lk.Type, lk.SubtableData)
-	if actualType != 5 {
+	if actualType != 7 {
 		return nil, 0, false
 	}
 	for _, sub := range subtables {
@@ -33,16 +32,16 @@ func (t *Table) MatchContext(lookupIndex uint16, glyphs []uint16, start int) ([]
 	return nil, 0, false
 }
 
-// MatchChainingContext tries to match a GSUB Type-6 Chaining Context rule
-// at position `start`. Backtrack and lookahead constrain context but do
-// not consume glyphs.
+// MatchChainingContext tries to match a GPOS Type-8 Chaining Context rule
+// at position `start`. Backtrack and lookahead only constrain context;
+// they do not consume input glyphs.
 func (t *Table) MatchChainingContext(lookupIndex uint16, glyphs []uint16, start int) ([]SequenceLookupRecord, int, bool) {
 	if int(lookupIndex) >= len(t.Lookups) {
 		return nil, 0, false
 	}
 	lk := t.Lookups[lookupIndex]
 	actualType, subtables := resolveExtension(lk.Type, lk.SubtableData)
-	if actualType != 6 {
+	if actualType != 8 {
 		return nil, 0, false
 	}
 	for _, sub := range subtables {
