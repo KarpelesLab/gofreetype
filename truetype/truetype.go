@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/KarpelesLab/gofreetype/cff"
+	ftcolor "github.com/KarpelesLab/gofreetype/color"
 	"github.com/KarpelesLab/gofreetype/gdef"
 	"github.com/KarpelesLab/gofreetype/gpos"
 	"github.com/KarpelesLab/gofreetype/gsub"
@@ -259,6 +260,9 @@ type Font struct {
 	// pipeline (substitution, positioning, glyph classification).
 	gdef, gpos, gsub []byte
 
+	// Color font tables, all optional.
+	cpal, colr []byte
+
 	// cffFont is the parsed CFF v1 container, populated only for CFF fonts.
 	cffFont *cff.Font
 
@@ -267,6 +271,10 @@ type Font struct {
 	gdefTable *gdef.Table
 	gposTable *gpos.Table
 	gsubTable *gsub.Table
+
+	// Optional parsed color tables.
+	cpalTable *ftcolor.CPAL
+	colrTable *ftcolor.COLR
 
 	cmapIndexes []byte
 
@@ -869,6 +877,12 @@ func (f *Font) GSUB() *gsub.Table { return f.gsubTable }
 // GPOS returns the parsed GPOS table, or nil if absent.
 func (f *Font) GPOS() *gpos.Table { return f.gposTable }
 
+// CPAL returns the parsed CPAL color palette table, or nil if absent.
+func (f *Font) CPAL() *ftcolor.CPAL { return f.cpalTable }
+
+// COLR returns the parsed COLR color layer table, or nil if absent.
+func (f *Font) COLR() *ftcolor.COLR { return f.colrTable }
+
 // Index returns a Font's index for the given rune.
 func (f *Font) Index(x rune) Index {
 	c := uint32(x)
@@ -1169,6 +1183,10 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 			f.gpos, err = readTable(ttf, ttf[x+8:x+16])
 		case "GSUB":
 			f.gsub, err = readTable(ttf, ttf[x+8:x+16])
+		case "CPAL":
+			f.cpal, err = readTable(ttf, ttf[x+8:x+16])
+		case "COLR":
+			f.colr, err = readTable(ttf, ttf[x+8:x+16])
 		}
 		if err != nil {
 			return
@@ -1232,6 +1250,16 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 	if len(f.gpos) > 0 {
 		if gp, gposErr := gpos.Parse(f.gpos); gposErr == nil {
 			f.gposTable = gp
+		}
+	}
+	if len(f.cpal) > 0 {
+		if cp, cpalErr := ftcolor.ParseCPAL(f.cpal); cpalErr == nil {
+			f.cpalTable = cp
+		}
+	}
+	if len(f.colr) > 0 {
+		if cr, colrErr := ftcolor.ParseCOLR(f.colr); colrErr == nil {
+			f.colrTable = cr
 		}
 	}
 
