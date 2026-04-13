@@ -26,6 +26,7 @@ import (
 	"github.com/KarpelesLab/gofreetype/gpos"
 	"github.com/KarpelesLab/gofreetype/gsub"
 	"github.com/KarpelesLab/gofreetype/varfont"
+	"github.com/KarpelesLab/gofreetype/woff"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -1178,6 +1179,16 @@ func (f *Font) Kern(scale fixed.Int26_6, i0, i1 Index) fixed.Int26_6 {
 //
 // For TrueType Collections, the first font in the collection is parsed.
 func Parse(ttf []byte) (font *Font, err error) {
+	// Transparently unwrap WOFF 1.0 / 2.0 containers so callers can pass
+	// a .woff / .woff2 byte slice straight to Parse. WOFF 2.0 currently
+	// returns UnsupportedError; plain SFNT input is returned unchanged.
+	if woff.IsWOFF(ttf) {
+		unwrapped, wErr := woff.Decode(ttf)
+		if wErr != nil {
+			return nil, wErr
+		}
+		ttf = unwrapped
+	}
 	return parse(ttf, 0)
 }
 
