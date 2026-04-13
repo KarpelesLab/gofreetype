@@ -125,10 +125,11 @@ func (t *Table) Pair(lookupIndex uint16, firstGlyph, secondGlyph uint16) (v1, v2
 		return ValueRecord{}, ValueRecord{}, false
 	}
 	lk := t.Lookups[lookupIndex]
-	if lk.Type != 2 {
+	actualType, subtables := resolveExtension(lk.Type, lk.SubtableData)
+	if actualType != 2 {
 		return ValueRecord{}, ValueRecord{}, false
 	}
-	for _, sub := range lk.SubtableData {
+	for _, sub := range subtables {
 		got1, got2, found, err := lookupPair(sub, firstGlyph, secondGlyph)
 		if err != nil {
 			continue
