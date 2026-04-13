@@ -71,6 +71,8 @@ type Context struct {
 	fontSize, dpi float64
 	scale         fixed.Int26_6
 	hinting       font.Hinting
+	// gamma is the rendering gamma; 1.0 disables correction.
+	gamma float64
 	// cache is the glyph cache.
 	cache [nGlyphs * nXFractions * nYFractions]cacheEntry
 }
@@ -187,7 +189,11 @@ func (c *Context) rasterize(glyph truetype.Index, fx, fy fixed.Int26_6) (
 		e0 = e1
 	}
 	a := image.NewAlpha(image.Rect(0, 0, xmax-xmin, ymax-ymin))
-	c.r.Rasterize(raster.NewAlphaSrcPainter(a))
+	var painter raster.Painter = raster.NewAlphaSrcPainter(a)
+	if c.gamma != 0 && c.gamma != 1 {
+		painter = raster.NewGammaCorrectionPainter(painter, c.gamma)
+	}
+	c.r.Rasterize(painter)
 	return c.glyphBuf.AdvanceWidth, a, image.Point{xmin, ymin}, nil
 }
 
@@ -328,7 +334,22 @@ func (c *Context) SetClip(clip image.Rectangle) {
 	c.clip = clip
 }
 
-// TODO(nigeltao): implement Context.SetGamma.
+// SetGamma sets the gamma correction value applied during rasterization.
+// A value of 1.0 (the default) disables correction. Higher values
+// brighten the rendered glyph edges; lower values darken them. Values
+// must be positive; non-positive values are clamped to 1.0.
+func (c *Context) SetGamma(gamma float64) {
+	if gamma <= 0 {
+		gamma = 1
+	}
+	if c.gamma == gamma {
+		return
+	}
+	c.gamma = gamma
+	for i := range c.cache {
+		c.cache[i] = cacheEntry{}
+	}
+}
 
 // NewContext creates a new Context.
 func NewContext() *Context {
@@ -337,5 +358,6 @@ func NewContext() *Context {
 		fontSize: 12,
 		dpi:      72,
 		scale:    12 << 6,
+		gamma:    1,
 	}
 }

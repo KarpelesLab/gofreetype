@@ -16,6 +16,31 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
+func TestSetGammaInvalidatesCache(t *testing.T) {
+	c := NewContext()
+	// Populate a cache entry — any valid one will do; we'll just mutate
+	// a slot directly since the high-level DrawString path requires a font.
+	c.cache[0] = cacheEntry{valid: true}
+	c.SetGamma(2.2)
+	if c.cache[0].valid {
+		t.Error("SetGamma should invalidate the glyph cache")
+	}
+	if c.gamma != 2.2 {
+		t.Errorf("gamma: got %v, want 2.2", c.gamma)
+	}
+	// Setting the same gamma again is a no-op.
+	c.cache[0] = cacheEntry{valid: true}
+	c.SetGamma(2.2)
+	if !c.cache[0].valid {
+		t.Error("SetGamma to the same value should not invalidate cache")
+	}
+	// Non-positive gammas clamp to 1.
+	c.SetGamma(-1)
+	if c.gamma != 1 {
+		t.Errorf("gamma after SetGamma(-1): got %v, want 1", c.gamma)
+	}
+}
+
 func TestScaling(t *testing.T) {
 	c := NewContext()
 	for _, tc := range [...]struct {
