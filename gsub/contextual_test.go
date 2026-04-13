@@ -144,6 +144,113 @@ func buildReverseChain(
 	return b
 }
 
+// buildContextFormat3 builds a Type-5 Format-3 subtable (per-position
+// coverage, no backtrack/lookahead).
+func buildContextFormat3(input [][]uint16, actions []SequenceLookupRecord) []byte {
+	var b []byte
+	encU16(&b, 3)
+	encU16(&b, uint16(len(input)))
+	covOffStart := len(b)
+	for range input {
+		encU16(&b, 0)
+	}
+	encU16(&b, uint16(len(actions)))
+	for _, a := range actions {
+		encU16(&b, a.SequenceIndex)
+		encU16(&b, a.LookupListIndex)
+	}
+	for i, gids := range input {
+		off := uint16(len(b))
+		b[covOffStart+2*i] = byte(off >> 8)
+		b[covOffStart+2*i+1] = byte(off)
+		b = append(b, buildCoverageFormat1(gids)...)
+	}
+	return b
+}
+
+func TestGSUBContextFormat3(t *testing.T) {
+	sub := buildContextFormat3(
+		[][]uint16{{1}, {2}, {3}},
+		[]SequenceLookupRecord{{SequenceIndex: 1, LookupListIndex: 42}},
+	)
+	data := buildGSUBWithSubtable(5, sub)
+	tbl, err := Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acts, consumed, ok := tbl.MatchContext(0, []uint16{1, 2, 3}, 0)
+	if !ok {
+		t.Fatal("expected match")
+	}
+	if consumed != 3 {
+		t.Errorf("consumed: got %d, want 3", consumed)
+	}
+	if len(acts) != 1 || acts[0].LookupListIndex != 42 {
+		t.Errorf("actions: got %+v, want [{seq=1, lookup=42}]", acts)
+	}
+	if _, _, ok := tbl.MatchContext(0, []uint16{1, 2, 4}, 0); ok {
+		t.Error("mismatched last glyph should not match")
+	}
+}
+
+// buildContextFormat1 builds a Type-5 Format-1 subtable with one rule.
+func buildContextFormat1(coverageGIDs []uint16, inputTail []uint16, actions []SequenceLookupRecord) []byte {
+	// Rule: inputSize = 1 + len(inputTail).
+	var rule []byte
+	encU16(&rule, uint16(1+len(inputTail)))
+	encU16(&rule, uint16(len(actions)))
+	for _, g := range inputTail {
+		encU16(&rule, g)
+	}
+	for _, a := range actions {
+		encU16(&rule, a.SequenceIndex)
+		encU16(&rule, a.LookupListIndex)
+	}
+
+	// RuleSet: 1 rule.
+	var ruleSet []byte
+	encU16(&ruleSet, 1)
+	encU16(&ruleSet, 4) // offset to rule from RuleSet start: header(2) + offsets(2) = 4
+	ruleSet = append(ruleSet, rule...)
+
+	// Subtable.
+	cov := buildCoverageFormat1(coverageGIDs)
+	var sub []byte
+	encU16(&sub, 1)
+	headerLen := 6 + 2*len(coverageGIDs)
+	covOff := headerLen
+	ruleSetOff := covOff + len(cov)
+	encU16(&sub, uint16(covOff))
+	encU16(&sub, uint16(len(coverageGIDs)))
+	for range coverageGIDs {
+		encU16(&sub, uint16(ruleSetOff))
+	}
+	sub = append(sub, cov...)
+	sub = append(sub, ruleSet...)
+	return sub
+}
+
+func TestGSUBContextFormat1(t *testing.T) {
+	// Coverage = {5}; rule input = [5, 6, 7]; action = apply lookup 11 at seq 2.
+	sub := buildContextFormat1(
+		[]uint16{5},
+		[]uint16{6, 7},
+		[]SequenceLookupRecord{{SequenceIndex: 2, LookupListIndex: 11}},
+	)
+	data := buildGSUBWithSubtable(5, sub)
+	tbl, err := Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acts, consumed, ok := tbl.MatchContext(0, []uint16{5, 6, 7}, 0)
+	if !ok || consumed != 3 || len(acts) != 1 || acts[0].LookupListIndex != 11 {
+		t.Errorf("MatchContext: got (%+v, %d, %v)", acts, consumed, ok)
+	}
+	if _, _, ok := tbl.MatchContext(0, []uint16{5, 6, 8}, 0); ok {
+		t.Error("third glyph mismatch should not match")
+	}
+}
+
 func TestGSUBReverseChainSingle(t *testing.T) {
 	// Rule: replace glyph 2 with glyph 200 when preceded by 1 and followed by 3.
 	sub := buildReverseChain(
