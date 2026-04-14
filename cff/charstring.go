@@ -111,6 +111,11 @@ type interp struct {
 	hasWidth     bool
 	widthPopped  bool // we've already decided whether sp[0] was a width
 
+	// hintSink, if non-nil, receives stem declarations as hstem/vstem
+	// (and hm variants) execute. Used by LoadGlyphHinted to surface
+	// stems alongside the decoded segment stream.
+	hintSink *stemSink
+
 	// ops is the number of operators executed; used to bound runaway charstrings.
 	ops int
 }
@@ -367,13 +372,36 @@ func (p *interp) apply(op uint16, rest []byte) (done bool, consumed int, err err
 		p.closeContour()
 		return true, 0, nil
 
-	// Hints — track stem counts but otherwise ignore.
+	// Hints — track stem counts and, optionally, surface stem positions
+	// to a hint sink for the caller-driven hinter.
 	case 1, 3, 18, 23: // hstem / vstem / hstemhm / vstemhm
 		p.popWidthIfOdd()
 		if p.sp%2 != 0 {
 			return false, 0, fmt.Errorf("stem declaration: odd operand count %d", p.sp)
 		}
 		p.nStemHints += p.sp / 2
+		if p.hintSink != nil {
+			horizontal := op == 1 || op == 18
+			for j := 0; j+1 < p.sp; j += 2 {
+				if horizontal {
+					p.hintSink.currentY += p.stack[j]
+					p.hintSink.stems = append(p.hintSink.stems, Stem{
+						Horizontal: true,
+						Edge:       p.hintSink.currentY,
+						Width:      p.stack[j+1],
+					})
+					p.hintSink.currentY += p.stack[j+1]
+				} else {
+					p.hintSink.currentX += p.stack[j]
+					p.hintSink.stems = append(p.hintSink.stems, Stem{
+						Horizontal: false,
+						Edge:       p.hintSink.currentX,
+						Width:      p.stack[j+1],
+					})
+					p.hintSink.currentX += p.stack[j+1]
+				}
+			}
+		}
 		p.sp = 0
 	case 19, 20: // hintmask / cntrmask
 		// Implicit stem declaration for any remaining operands.
