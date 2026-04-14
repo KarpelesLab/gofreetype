@@ -252,7 +252,10 @@ type Font struct {
 
 	// Tables sliced from the TTF data. The different tables are documented
 	// at http://developer.apple.com/fonts/TTRefMan/RM06/Chap6.html
-	cmap, cvt, fpgm, glyf, hdmx, head, hhea, hmtx, kern, loca, maxp, name, os2, prep, vmtx []byte
+	cmap, cvt, fpgm, glyf, hdmx, head, hhea, hmtx, kern, loca, maxp, name, os2, post, prep, vmtx []byte
+
+	// postInfo is the parsed post table (glyph names, italic angle, etc.).
+	postInfo *PostInfo
 
 	// cff and cff2 are the raw CFF / CFF2 tables for OpenType fonts with
 	// PostScript outlines. Exactly one of glyf and (cff|cff2) is populated.
@@ -1339,6 +1342,8 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 			f.name, err = readTable(ttf, ttf[x+8:x+16])
 		case "OS/2":
 			f.os2, err = readTable(ttf, ttf[x+8:x+16])
+		case "post":
+			f.post, err = readTable(ttf, ttf[x+8:x+16])
 		case "prep":
 			f.prep, err = readTable(ttf, ttf[x+8:x+16])
 		case "vmtx":
@@ -1406,6 +1411,9 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 		return
 	}
 	f.parseOS2()
+	if len(f.post) > 0 {
+		_ = f.parsePost(f.post)
+	}
 
 	if f.kind == FontKindCFF {
 		cf, cffErr := cff.Parse(f.cff)
