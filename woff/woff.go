@@ -186,13 +186,6 @@ func decodeWOFF1(data []byte) ([]byte, error) {
 	return out, nil
 }
 
-// decodeWOFF2 is a stub that returns an UnsupportedError. Full WOFF2
-// requires a brotli decompressor and the glyf-table transform which is
-// substantial enough to live in its own file.
-func decodeWOFF2(data []byte) ([]byte, error) {
-	return nil, UnsupportedError("WOFF 2.0 not yet implemented")
-}
-
 // sfntSearchHints computes the searchRange / entrySelector / rangeShift
 // triple written into every SFNT header for binary-search-friendly
 // directory layout.
