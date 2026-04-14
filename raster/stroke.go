@@ -188,7 +188,7 @@ func addArc(p Adder, pivot, n0, n1 fixed.Point26_6) {
 
 // midpoint returns the midpoint of two Points.
 func midpoint(a, b fixed.Point26_6) fixed.Point26_6 {
-	return fixed.Point26_6{(a.X + b.X) / 2, (a.Y + b.Y) / 2}
+	return fixed.Point26_6{X: (a.X + b.X) / 2, Y: (a.Y + b.Y) / 2}
 }
 
 // angleGreaterThan45 returns whether the angle between two vectors is more
@@ -203,7 +203,7 @@ func interpolate(a, b fixed.Point26_6, t fixed.Int52_12) fixed.Point26_6 {
 	s := 1<<12 - t
 	x := s*fixed.Int52_12(a.X) + t*fixed.Int52_12(b.X)
 	y := s*fixed.Int52_12(a.Y) + t*fixed.Int52_12(b.Y)
-	return fixed.Point26_6{fixed.Int26_6(x >> 12), fixed.Int26_6(y >> 12)}
+	return fixed.Point26_6{X: fixed.Int26_6(x >> 12), Y: fixed.Int26_6(y >> 12)}
 }
 
 // curviest2 returns the value of t for which the quadratic parametric curve
@@ -310,7 +310,6 @@ func (k *stroker) addNonCurvy2(b, c fixed.Point26_6) {
 		t--
 		anorm = cnorm
 	}
-	panic("unreachable")
 }
 
 // Add1 adds a linear segment to the stroker.
@@ -410,25 +409,25 @@ func (k *stroker) stroke(q Path) {
 	// path is accumulated in k.r. Once we've finished adding the LHS to k.p,
 	// we add the RHS in reverse order.
 	k.r = make(Path, 0, len(q))
-	k.a = fixed.Point26_6{q[1], q[2]}
+	k.a = fixed.Point26_6{X: q[1], Y: q[2]}
 	for i := 4; i < len(q); {
 		switch q[i] {
 		case 1:
 			k.Add1(
-				fixed.Point26_6{q[i+1], q[i+2]},
+				fixed.Point26_6{X: q[i+1], Y: q[i+2]},
 			)
 			i += 4
 		case 2:
 			k.Add2(
-				fixed.Point26_6{q[i+1], q[i+2]},
-				fixed.Point26_6{q[i+3], q[i+4]},
+				fixed.Point26_6{X: q[i+1], Y: q[i+2]},
+				fixed.Point26_6{X: q[i+3], Y: q[i+4]},
 			)
 			i += 6
 		case 3:
 			k.Add3(
-				fixed.Point26_6{q[i+1], q[i+2]},
-				fixed.Point26_6{q[i+3], q[i+4]},
-				fixed.Point26_6{q[i+5], q[i+6]},
+				fixed.Point26_6{X: q[i+1], Y: q[i+2]},
+				fixed.Point26_6{X: q[i+3], Y: q[i+4]},
+				fixed.Point26_6{X: q[i+5], Y: q[i+6]},
 			)
 			i += 8
 		default:
@@ -443,7 +442,7 @@ func (k *stroker) stroke(q Path) {
 	k.cr.Cap(k.p, k.u, q.lastPoint(), pNeg(k.anorm))
 	addPathReversed(k.p, k.r)
 	pivot := q.firstPoint()
-	k.cr.Cap(k.p, k.u, pivot, pivot.Sub(fixed.Point26_6{k.r[1], k.r[2]}))
+	k.cr.Cap(k.p, k.u, pivot, pivot.Sub(fixed.Point26_6{X: k.r[1], Y: k.r[2]}))
 }
 
 // Stroke adds q stroked with the given width to p. The result is typically
