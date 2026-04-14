@@ -38,8 +38,8 @@ func TestParseSTAT(t *testing.T) {
 	total := valuesStart + len(val1) + len(val2)
 	data := make([]byte, total)
 	// Header
-	binary.BigEndian.PutUint16(data[0:], 1)               // major
-	binary.BigEndian.PutUint16(data[2:], 1)               // minor
+	binary.BigEndian.PutUint16(data[0:], 1) // major
+	binary.BigEndian.PutUint16(data[2:], 1) // minor
 	binary.BigEndian.PutUint16(data[4:], uint16(axisSize))
 	binary.BigEndian.PutUint16(data[6:], uint16(axisCount))
 	binary.BigEndian.PutUint32(data[8:], uint32(axesOff))

@@ -22,12 +22,12 @@ package type1
 // files always embed the binary form.
 
 const (
-	eexecKey       uint16 = 55665
-	charstringKey  uint16 = 4330
-	cipherC1       uint16 = 52845
-	cipherC2       uint16 = 22719
-	eexecLeadBytes        = 4
-	charstringLeadBytes   = 4 // configurable via lenIV, default 4
+	eexecKey            uint16 = 55665
+	charstringKey       uint16 = 4330
+	cipherC1            uint16 = 52845
+	cipherC2            uint16 = 22719
+	eexecLeadBytes             = 4
+	charstringLeadBytes        = 4 // configurable via lenIV, default 4
 )
 
 // decryptEexec undoes the eexec encryption over an entire binary

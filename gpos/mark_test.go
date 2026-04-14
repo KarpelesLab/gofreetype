@@ -10,13 +10,14 @@ import "testing"
 // buildMarkToBase builds a Type-4 mark-to-base subtable.
 //
 // Layout (from subtable start):
-//   0: header (12 bytes: format, markCovOff, baseCovOff, markClassCount,
-//       markArrayOff, baseArrayOff)
-//   12: MarkArray
-//   ...: BaseArray
-//   ...: mark coverage
-//   ...: base coverage
-//   ...: Anchor tables inline in MarkArray/BaseArray regions
+//
+//	0: header (12 bytes: format, markCovOff, baseCovOff, markClassCount,
+//	    markArrayOff, baseArrayOff)
+//	12: MarkArray
+//	...: BaseArray
+//	...: mark coverage
+//	...: base coverage
+//	...: Anchor tables inline in MarkArray/BaseArray regions
 //
 // For simplicity, we place mark and base coverages at the tail.
 func buildMarkToBase(
@@ -80,7 +81,7 @@ func buildMarkToBase(
 	baseCovOff := markCovOff + len(markCov)
 
 	var b []byte
-	encU16(&b, 1)                       // format
+	encU16(&b, 1) // format
 	encU16(&b, uint16(markCovOff))
 	encU16(&b, uint16(baseCovOff))
 	encU16(&b, uint16(markClassCount))

@@ -39,14 +39,14 @@ const (
 
 // Format flags — low 4 bits are the format type, high bits are modifiers.
 const (
-	fmtDefault         = 0x00000000
-	fmtInkbounds       = 0x00000200
-	fmtAccelWithInk    = 0x00000100
+	fmtDefault           = 0x00000000
+	fmtInkbounds         = 0x00000200
+	fmtAccelWithInk      = 0x00000100
 	fmtCompressedMetrics = 0x00000100
-	fmtByteMask        = 1 << 2 // big-endian byte order
-	fmtBitMask         = 1 << 3 // most significant bit first
-	fmtGlyphPadMask    = 3 << 0 // scanline pad in bytes: 1/2/4/8
-	fmtScanUnitMask    = 3 << 4
+	fmtByteMask          = 1 << 2 // big-endian byte order
+	fmtBitMask           = 1 << 3 // most significant bit first
+	fmtGlyphPadMask      = 3 << 0 // scanline pad in bytes: 1/2/4/8
+	fmtScanUnitMask      = 3 << 4
 )
 
 // Font is a parsed PCF font.

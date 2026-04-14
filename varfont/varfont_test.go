@@ -27,12 +27,12 @@ func buildFVar(axes []VariationAxis, instances []NamedInstance, includePS bool) 
 	totalLen := instOff + instanceSize*len(instances)
 
 	b := make([]byte, totalLen)
-	binary.BigEndian.PutUint16(b[0:], 1)                 // major
-	binary.BigEndian.PutUint16(b[2:], 0)                 // minor
+	binary.BigEndian.PutUint16(b[0:], 1) // major
+	binary.BigEndian.PutUint16(b[2:], 0) // minor
 	binary.BigEndian.PutUint16(b[4:], uint16(axesOff))
-	binary.BigEndian.PutUint16(b[6:], 2)                 // reserved
+	binary.BigEndian.PutUint16(b[6:], 2) // reserved
 	binary.BigEndian.PutUint16(b[8:], uint16(axisCount))
-	binary.BigEndian.PutUint16(b[10:], 20)                // axisSize
+	binary.BigEndian.PutUint16(b[10:], 20) // axisSize
 	binary.BigEndian.PutUint16(b[12:], uint16(len(instances)))
 	binary.BigEndian.PutUint16(b[14:], uint16(instanceSize))
 
@@ -101,7 +101,7 @@ func TestNormalizeAxisValue(t *testing.T) {
 		{900, 1},
 		{250, -0.5},
 		{650, 0.5},
-		{50, -1},   // clamp below
+		{50, -1},  // clamp below
 		{1000, 1}, // clamp above
 	}
 	for _, tc := range cases {

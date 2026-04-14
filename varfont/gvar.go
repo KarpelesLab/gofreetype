@@ -11,12 +11,12 @@ import "fmt"
 // slice form; to apply deltas for a specific glyph + axis coordinate
 // vector, call ApplyDeltas.
 type GVar struct {
-	AxisCount     int
-	sharedTuples  [][]float64 // each entry: axisCount normalized coords
-	longOffsets   bool
-	dataArrayOff  int
-	offsets       []uint32 // glyphCount+1 offsets into dataArrayOff
-	data          []byte
+	AxisCount    int
+	sharedTuples [][]float64 // each entry: axisCount normalized coords
+	longOffsets  bool
+	dataArrayOff int
+	offsets      []uint32 // glyphCount+1 offsets into dataArrayOff
+	data         []byte
 }
 
 // PointDelta is the (x, y) offset applied to one glyph point in font units.
@@ -85,10 +85,10 @@ func ParseGVar(data []byte) (*GVar, error) {
 
 // Tuple variation header flags.
 const (
-	flagEmbeddedPeakTuple    = 0x8000
-	flagIntermediateRegion   = 0x4000
-	flagPrivatePointNumbers  = 0x2000
-	flagTupleIndexMask       = 0x0FFF
+	flagEmbeddedPeakTuple   = 0x8000
+	flagIntermediateRegion  = 0x4000
+	flagPrivatePointNumbers = 0x2000
+	flagTupleIndexMask      = 0x0FFF
 )
 
 // tupleHeader captures the decoded fields of one tuple variation header.
@@ -127,7 +127,7 @@ func (g *GVar) ApplyDeltas(gid int, normCoords []float64, numPoints int) []Point
 	countField := u16(gvd, 0)
 	serializedOff := int(u16(gvd, 2))
 	nTuples := int(countField & 0x0FFF)
-	sharedPointsFlag := countField & 0x8000 != 0
+	sharedPointsFlag := countField&0x8000 != 0
 
 	// Total points includes phantom points (4 extra points appended after
 	// the outline points) per the OpenType spec for gvar. Callers pass just

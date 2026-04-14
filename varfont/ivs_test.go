@@ -107,8 +107,8 @@ func TestItemVariationStoreDelta(t *testing.T) {
 func buildHVAR(ivsData []byte) []byte {
 	headerLen := 20
 	out := make([]byte, headerLen+len(ivsData))
-	binary.BigEndian.PutUint16(out[0:], 1) // major
-	binary.BigEndian.PutUint16(out[2:], 0) // minor
+	binary.BigEndian.PutUint16(out[0:], 1)                 // major
+	binary.BigEndian.PutUint16(out[2:], 0)                 // minor
 	binary.BigEndian.PutUint32(out[4:], uint32(headerLen)) // ivsOff
 	// advOff at +8 = 0 (direct mapping).
 	copy(out[headerLen:], ivsData)
@@ -144,9 +144,9 @@ func buildMVAR(ivsData []byte, records map[string][2]uint16) []byte {
 	// ivs comes last so we can compute the offset.
 	recEnd := headerLen + recCount*recSize
 	out := make([]byte, recEnd+len(ivsData))
-	binary.BigEndian.PutUint16(out[0:], 1)  // major
-	binary.BigEndian.PutUint16(out[2:], 0)  // minor
-	binary.BigEndian.PutUint16(out[4:], 0)  // reserved
+	binary.BigEndian.PutUint16(out[0:], 1) // major
+	binary.BigEndian.PutUint16(out[2:], 0) // minor
+	binary.BigEndian.PutUint16(out[4:], 0) // reserved
 	binary.BigEndian.PutUint16(out[6:], uint16(recSize))
 	binary.BigEndian.PutUint16(out[8:], uint16(recCount))
 	binary.BigEndian.PutUint16(out[10:], uint16(recEnd))

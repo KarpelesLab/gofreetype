@@ -21,9 +21,9 @@ type SbixStrike struct {
 	PPI  uint16
 
 	// start is the absolute offset of the Strike header within Sbix.data.
-	start    int
+	start     int
 	numGlyphs int
-	data     []byte
+	data      []byte
 }
 
 // SbixGlyph is one pre-rendered glyph image from an sbix strike.

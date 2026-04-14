@@ -36,9 +36,9 @@ func buildMiniPFB() []byte {
 	// where <body> is the encrypted charstring bytes.
 	csAPlain := []byte{
 		// hsbw 0 500
-		0x8b,       // push 0 (b=139)
-		247, 140,   // push 500 (500-108=392 -> 247 + (392>>8), 392&0xff). 392 >> 8 = 1, 247+1=248; &0xff=136.
-		13,         // hsbw
+		0x8b,     // push 0 (b=139)
+		247, 140, // push 500 (500-108=392 -> 247 + (392>>8), 392&0xff). 392 >> 8 = 1, 247+1=248; &0xff=136.
+		13, // hsbw
 		// rmoveto 10 10
 		encNum1(10), encNum1(10),
 		21, // rmoveto

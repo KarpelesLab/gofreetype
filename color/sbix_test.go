@@ -41,9 +41,9 @@ func buildSbix(ppem, ppi uint16, numGlyphs int, glyphs map[int]SbixGlyph) []byte
 
 	total := headerLen + strikeLen
 	out := make([]byte, total)
-	binary.BigEndian.PutUint16(out[0:], 1)  // version
-	binary.BigEndian.PutUint16(out[2:], 0)  // flags
-	binary.BigEndian.PutUint32(out[4:], 1)  // numStrikes
+	binary.BigEndian.PutUint16(out[0:], 1) // version
+	binary.BigEndian.PutUint16(out[2:], 0) // flags
+	binary.BigEndian.PutUint32(out[4:], 1) // numStrikes
 	binary.BigEndian.PutUint32(out[8:], uint32(strikeOff))
 
 	sOff := strikeOff

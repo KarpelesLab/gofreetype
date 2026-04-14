@@ -125,9 +125,9 @@ func buildOTFForCFF(nGlyphs int, cffTable []byte) []byte {
 		case "hhea":
 			b := make([]byte, 36)
 			// ascent / descent / linegap
-			b[4], b[5] = 0x03, 0x20 // 800
-			b[6], b[7] = 0xff, 0x38 // -200
-			b[8], b[9] = 0x00, 0x64 // 100
+			b[4], b[5] = 0x03, 0x20   // 800
+			b[6], b[7] = 0xff, 0x38   // -200
+			b[8], b[9] = 0x00, 0x64   // 100
 			b[18], b[19] = 0x00, 0x01 // caretSlopeRise
 			b[34] = byte(nGlyphs >> 8)
 			b[35] = byte(nGlyphs)

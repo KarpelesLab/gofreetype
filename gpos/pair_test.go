@@ -135,8 +135,8 @@ func buildGPOSWithPairLookup(sub []byte) []byte {
 
 	// LookupList.
 	var lookupList []byte
-	encU16(&lookupList, 1)  // lookupCount
-	encU16(&lookupList, 4)  // offset to Lookup[0]
+	encU16(&lookupList, 1) // lookupCount
+	encU16(&lookupList, 4) // offset to Lookup[0]
 	// Lookup table.
 	encU16(&lookupList, 2) // type
 	encU16(&lookupList, 0) // flag
@@ -292,7 +292,7 @@ func TestGPOSPairFormat2(t *testing.T) {
 		{21, 21, 2},
 	})
 	adj := [][]int16{
-		{0, 0, 0},    // class1 = 0 (unclassified)
+		{0, 0, 0},     // class1 = 0 (unclassified)
 		{0, -30, -50}, // class1 = 1
 	}
 	sub := buildPairPosFormat2(firstGIDs, 2, 3, classDef1, classDef2, adj)

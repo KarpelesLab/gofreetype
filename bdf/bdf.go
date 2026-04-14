@@ -49,8 +49,8 @@ type Font struct {
 // Glyph is a single BDF glyph.
 type Glyph struct {
 	Name     string
-	Encoding rune  // -1 if the glyph is unencoded
-	Advance  int   // DWIDTH (horizontal advance, in pixels)
+	Encoding rune // -1 if the glyph is unencoded
+	Advance  int  // DWIDTH (horizontal advance, in pixels)
 	BBX      int
 	BBY      int
 	BBOx     int
@@ -230,4 +230,3 @@ func (f *Font) Glyph(r rune) *Glyph {
 	}
 	return &f.Glyphs[idx]
 }
-

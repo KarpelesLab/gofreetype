@@ -14,14 +14,14 @@ func TestTupleScalarNonIntermediate(t *testing.T) {
 	// Peak at +1 on one axis.
 	peak := []float64{1, 0}
 	for _, tc := range []struct {
-		coord    []float64
+		coord      []float64
 		wantScalar float64
 	}{
-		{[]float64{0, 0}, 0},      // Not on the peak axis: scalar=0 (0 axis value with peak!=0 -> 0)
-		{[]float64{1, 0}, 1},      // Exactly at peak.
-		{[]float64{0.5, 0}, 0.5},  // Halfway.
-		{[]float64{-0.5, 0}, 0},   // Opposite sign.
-		{[]float64{1, 0.8}, 1},    // Other axis with peak=0: no effect.
+		{[]float64{0, 0}, 0},     // Not on the peak axis: scalar=0 (0 axis value with peak!=0 -> 0)
+		{[]float64{1, 0}, 1},     // Exactly at peak.
+		{[]float64{0.5, 0}, 0.5}, // Halfway.
+		{[]float64{-0.5, 0}, 0},  // Opposite sign.
+		{[]float64{1, 0.8}, 1},   // Other axis with peak=0: no effect.
 	} {
 		got := tupleScalar(tc.coord, peak, nil, nil)
 		if math.Abs(got-tc.wantScalar) > 1e-9 {
@@ -39,13 +39,13 @@ func TestTupleScalarIntermediate(t *testing.T) {
 		coord float64
 		want  float64
 	}{
-		{0.2, 0},              // At start.
-		{0.6, 1},              // At peak.
-		{1.0, 0},              // At end.
-		{0.4, 0.5},            // (0.4-0.2)/(0.6-0.2) = 0.5
-		{0.8, 0.5},            // (1.0-0.8)/(1.0-0.6) = 0.5
-		{0.1, 0},              // Below start.
-		{1.1, 0},              // Above end.
+		{0.2, 0},   // At start.
+		{0.6, 1},   // At peak.
+		{1.0, 0},   // At end.
+		{0.4, 0.5}, // (0.4-0.2)/(0.6-0.2) = 0.5
+		{0.8, 0.5}, // (1.0-0.8)/(1.0-0.6) = 0.5
+		{0.1, 0},   // Below start.
+		{1.1, 0},   // Above end.
 	} {
 		got := tupleScalar([]float64{tc.coord}, peak, start, end)
 		if math.Abs(got-tc.want) > 1e-9 {

@@ -19,7 +19,7 @@ func buildGDEF(minor uint16, glyphClass, markAttachClass []byte, markSets []byte
 		headerLen = 14
 	}
 	header := make([]byte, headerLen)
-	binary.BigEndian.PutUint16(header[0:], 1)     // major
+	binary.BigEndian.PutUint16(header[0:], 1) // major
 	binary.BigEndian.PutUint16(header[2:], minor)
 
 	cursor := headerLen

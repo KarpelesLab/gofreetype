@@ -17,10 +17,10 @@ import (
 // in 26.6 fixed-point pixel units, with Y increasing upwards (same
 // convention as TrueType's GlyphBuf.Points).
 type CFFSegment struct {
-	Op               cff.SegmentOp
-	X, Y             fixed.Int26_6
-	CX1, CY1         fixed.Int26_6
-	CX2, CY2         fixed.Int26_6
+	Op       cff.SegmentOp
+	X, Y     fixed.Int26_6
+	CX1, CY1 fixed.Int26_6
+	CX2, CY2 fixed.Int26_6
 }
 
 // TODO: implement VerticalHinting.

@@ -26,10 +26,10 @@ const (
 // A Segment is one path operation emitted by the Type 2 interpreter, in the
 // font's integer unit coordinate system (before applying FontMatrix).
 type Segment struct {
-	Op              SegmentOp
-	X, Y            float64
-	CX1, CY1        float64
-	CX2, CY2        float64
+	Op       SegmentOp
+	X, Y     float64
+	CX1, CY1 float64
+	CX2, CY2 float64
 }
 
 // Glyph holds the rendered output of a Type 2 charstring.
@@ -71,18 +71,18 @@ func (f *Font) LoadGlyph(gid int) (*Glyph, error) {
 	}
 
 	psInterp := &interp{
-		globals:       f.GlobalSubrs,
-		locals:        locals,
-		nominalWidth:  nominalWidth,
-		defaultWidth:  defaultWidth,
+		globals:      f.GlobalSubrs,
+		locals:       locals,
+		nominalWidth: nominalWidth,
+		defaultWidth: defaultWidth,
 	}
 	if err := psInterp.run(f.CharStrings[gid]); err != nil {
 		return nil, fmt.Errorf("cff: glyph %d: %w", gid, err)
 	}
 	return &Glyph{
-		Segments:  psInterp.segments,
-		Width:     psInterp.width,
-		HasWidth:  psInterp.hasWidth,
+		Segments: psInterp.segments,
+		Width:    psInterp.width,
+		HasWidth: psInterp.hasWidth,
 	}, nil
 }
 
@@ -97,8 +97,8 @@ type interp struct {
 	contourOpen bool
 
 	// callStack tracks nested callsubr/callgsubr recursion.
-	callStack    [10]subrFrame
-	callDepth    int
+	callStack [10]subrFrame
+	callDepth int
 
 	// Hint counters (we don't implement hinting; we just need to skip
 	// hintmask / cntrmask operand bytes whose count depends on how many

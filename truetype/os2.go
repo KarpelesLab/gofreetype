@@ -50,15 +50,15 @@ type OS2Info struct {
 
 // Style flags from fsSelection (OS/2 spec).
 const (
-	StyleItalic    uint16 = 1 << 0
+	StyleItalic     uint16 = 1 << 0
 	StyleUnderscore uint16 = 1 << 1
-	StyleNegative  uint16 = 1 << 2
-	StyleOutlined  uint16 = 1 << 3
-	StyleStrikeout uint16 = 1 << 4
-	StyleBold      uint16 = 1 << 5
-	StyleRegular   uint16 = 1 << 6
-	StyleUseTypo   uint16 = 1 << 7
-	StyleOblique   uint16 = 1 << 9
+	StyleNegative   uint16 = 1 << 2
+	StyleOutlined   uint16 = 1 << 3
+	StyleStrikeout  uint16 = 1 << 4
+	StyleBold       uint16 = 1 << 5
+	StyleRegular    uint16 = 1 << 6
+	StyleUseTypo    uint16 = 1 << 7
+	StyleOblique    uint16 = 1 << 9
 )
 
 // parseOS2Info decodes the OS/2 table into a richer OS2Info record.

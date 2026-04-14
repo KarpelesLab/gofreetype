@@ -86,15 +86,15 @@ func buildSFNTWithSbix(t *testing.T) []byte {
 	strikeHeaderLen := 4 + 4*(2+1) // 4 for ppem+ppi, 4 per offset
 	// Glyph 0 has no data; glyph 1 has originX(2) + originY(2) + type(4) + data.
 	glyph1 := make([]byte, 8+len(pngBytes))
-	binary.BigEndian.PutUint16(glyph1[0:], 0)  // originOffsetX
-	binary.BigEndian.PutUint16(glyph1[2:], 0)  // originOffsetY
+	binary.BigEndian.PutUint16(glyph1[0:], 0) // originOffsetX
+	binary.BigEndian.PutUint16(glyph1[2:], 0) // originOffsetY
 	copy(glyph1[4:8], "png ")
 	copy(glyph1[8:], pngBytes)
 
 	offsets := []uint32{
-		uint32(strikeHeaderLen),                  // glyph 0 starts (empty)
-		uint32(strikeHeaderLen),                  // glyph 1 starts
-		uint32(strikeHeaderLen + len(glyph1)),    // end sentinel
+		uint32(strikeHeaderLen),               // glyph 0 starts (empty)
+		uint32(strikeHeaderLen),               // glyph 1 starts
+		uint32(strikeHeaderLen + len(glyph1)), // end sentinel
 	}
 	strikeLen := strikeHeaderLen + len(glyph1)
 	sbixHeaderLen := 8 + 4 // 1 strike offset

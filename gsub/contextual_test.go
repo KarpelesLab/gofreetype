@@ -254,10 +254,10 @@ func TestGSUBContextFormat1(t *testing.T) {
 func TestGSUBReverseChainSingle(t *testing.T) {
 	// Rule: replace glyph 2 with glyph 200 when preceded by 1 and followed by 3.
 	sub := buildReverseChain(
-		[]uint16{2},               // coverage
-		[][]uint16{{1}},          // backtrack
-		[][]uint16{{3}},          // lookahead
-		[]uint16{200},             // substitutes (same length as coverage)
+		[]uint16{2},     // coverage
+		[][]uint16{{1}}, // backtrack
+		[][]uint16{{3}}, // lookahead
+		[]uint16{200},   // substitutes (same length as coverage)
 	)
 	data := buildGSUBWithSubtable(8, sub)
 	tbl, err := Parse(data)

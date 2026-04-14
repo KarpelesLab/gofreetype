@@ -66,8 +66,8 @@ func buildCBLC_CBDT(ppem uint8, numGlyphs int, glyphs map[uint16]struct {
 	idxSubLen := 8 + 4*(count+1)
 	idxSubTable := make([]byte, idxSubLen)
 	binary.BigEndian.PutUint16(idxSubTable[0:], 1)  // indexFormat
-	binary.BigEndian.PutUint16(idxSubTable[2:], 17)  // imageFormat
-	binary.BigEndian.PutUint32(idxSubTable[4:], 0)   // imageDataOffset (offsets in the per-glyph array are absolute into CBDT)
+	binary.BigEndian.PutUint16(idxSubTable[2:], 17) // imageFormat
+	binary.BigEndian.PutUint32(idxSubTable[4:], 0)  // imageDataOffset (offsets in the per-glyph array are absolute into CBDT)
 
 	// Fill offsets. Missing glyphs have the same start as the next.
 	offArr := idxSubTable[8:]
@@ -106,7 +106,7 @@ func buildCBLC_CBDT(ppem uint8, numGlyphs int, glyphs map[uint16]struct {
 
 	// Assemble CBLC.
 	var cblcBuf []byte
-	cblcBuf = append(cblcBuf, 0, 3, 0, 0)           // version 3.0
+	cblcBuf = append(cblcBuf, 0, 3, 0, 0)               // version 3.0
 	cblcBuf = binary.BigEndian.AppendUint32(cblcBuf, 1) // numSizes
 	cblcBuf = append(cblcBuf, bitmapSizeRec...)
 	cblcBuf = append(cblcBuf, idxArray...)

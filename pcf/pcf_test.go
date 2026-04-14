@@ -55,12 +55,12 @@ func buildMinimalPCF() []byte {
 	// Each row is stride=1 byte; h=3 rows; total bitmap bytes = 3.
 	bitmaps := make([]byte, 8+4+16+3)
 	le.PutUint32(bitmaps[0:4], bitmapFormat)
-	bo.PutUint32(bitmaps[4:8], 1) // count
-	bo.PutUint32(bitmaps[8:12], 0) // offset[0]
-	bo.PutUint32(bitmaps[12:16], 3)  // sizes[0] (pad=1)
-	bo.PutUint32(bitmaps[16:20], 3)  // sizes[1]
-	bo.PutUint32(bitmaps[20:24], 3)  // sizes[2]
-	bo.PutUint32(bitmaps[24:28], 3)  // sizes[3]
+	bo.PutUint32(bitmaps[4:8], 1)   // count
+	bo.PutUint32(bitmaps[8:12], 0)  // offset[0]
+	bo.PutUint32(bitmaps[12:16], 3) // sizes[0] (pad=1)
+	bo.PutUint32(bitmaps[16:20], 3) // sizes[1]
+	bo.PutUint32(bitmaps[20:24], 3) // sizes[2]
+	bo.PutUint32(bitmaps[24:28], 3) // sizes[3]
 	// Bitmap bytes. 3 rows × 1 stride = 3 bytes, MSB-first.
 	// We want a 3x3 square: all bits in the top 3 columns of each row set.
 	// 0xE0 = 11100000 → pixels (0,y), (1,y), (2,y) set.
@@ -77,12 +77,12 @@ func buildMinimalPCF() []byte {
 	// We'll use minCharOrByte2=65 maxCharOrByte2=65 minByte1=0 maxByte1=0.
 	encodings := make([]byte, 14+2)
 	le.PutUint32(encodings[0:4], fmtByteMask)
-	bo.PutUint16(encodings[4:6], 65)      // minCharOrByte2
-	bo.PutUint16(encodings[6:8], 65)      // maxCharOrByte2
-	bo.PutUint16(encodings[8:10], 0)      // minByte1
-	bo.PutUint16(encodings[10:12], 0)     // maxByte1
+	bo.PutUint16(encodings[4:6], 65)       // minCharOrByte2
+	bo.PutUint16(encodings[6:8], 65)       // maxCharOrByte2
+	bo.PutUint16(encodings[8:10], 0)       // minByte1
+	bo.PutUint16(encodings[10:12], 0)      // maxByte1
 	bo.PutUint16(encodings[12:14], 0xFFFF) // defaultChar
-	bo.PutUint16(encodings[14:16], 0)     // glyph index for 'A'
+	bo.PutUint16(encodings[14:16], 0)      // glyph index for 'A'
 
 	// --- Assemble TOC + body ---
 	// TOC entries (16 bytes each): type, format, size, offset.

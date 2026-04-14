@@ -64,12 +64,12 @@ const (
 	// A 32-bit encoding consists of a most-significant 16-bit Platform ID and a
 	// least-significant 16-bit Platform Specific ID. The magic numbers are
 	// specified at https://www.microsoft.com/typography/otspec/name.htm
-	unicodeEncodingBMPOnly       = 0x00000003 // PID = 0 (Unicode), PSID = 3 (Unicode 2.0 BMP Only)
-	unicodeEncodingFull          = 0x00000004 // PID = 0 (Unicode), PSID = 4 (Unicode 2.0 Full Repertoire)
-	unicodeEncodingVariation     = 0x00000005 // PID = 0 (Unicode), PSID = 5 (Variation Sequences)
-	microsoftSymbolEncoding      = 0x00030000 // PID = 3 (Microsoft), PSID = 0 (Symbol)
-	microsoftUCS2Encoding        = 0x00030001 // PID = 3 (Microsoft), PSID = 1 (UCS-2)
-	microsoftUCS4Encoding        = 0x0003000a // PID = 3 (Microsoft), PSID = 10 (UCS-4)
+	unicodeEncodingBMPOnly   = 0x00000003 // PID = 0 (Unicode), PSID = 3 (Unicode 2.0 BMP Only)
+	unicodeEncodingFull      = 0x00000004 // PID = 0 (Unicode), PSID = 4 (Unicode 2.0 Full Repertoire)
+	unicodeEncodingVariation = 0x00000005 // PID = 0 (Unicode), PSID = 5 (Variation Sequences)
+	microsoftSymbolEncoding  = 0x00030000 // PID = 3 (Microsoft), PSID = 0 (Symbol)
+	microsoftUCS2Encoding    = 0x00030001 // PID = 3 (Microsoft), PSID = 1 (UCS-2)
+	microsoftUCS4Encoding    = 0x0003000a // PID = 3 (Microsoft), PSID = 10 (UCS-4)
 )
 
 // An HMetric holds the horizontal metrics of a single glyph.
@@ -309,24 +309,24 @@ type Font struct {
 	cmapFormat10GlyphIDArray []uint16 // For format 10.
 	variationSelectors       []variationSelector
 	cm                       []cm
-	locaOffsetFormat        int
-	nGlyph, nHMetric, nKern int
+	locaOffsetFormat         int
+	nGlyph, nHMetric, nKern  int
 
 	// kernSubtables lists each format-0 horizontal kern subtable in the
 	// font's kern table. Kern() looks up pairs in each subtable and sums
 	// the results (standard "additive" semantics). Empty for fonts with
 	// no kern table or no usable subtables.
-	kernSubtables []kernSubtable
-	fUnitsPerEm             int32
-	ascent                  int32 // In FUnits.
-	descent                 int32 // In FUnits; typically negative.
-	lineGap                 int32 // In FUnits.
-	xHeight                 int32 // In FUnits; from OS/2 table v2+.
-	capHeight               int32 // In FUnits; from OS/2 table v2+.
-	os2Info                 *OS2Info
-	caretSlopeRise          int32 // From hhea.
-	caretSlopeRun           int32 // From hhea.
-	bounds                  fixed.Rectangle26_6 // In FUnits.
+	kernSubtables  []kernSubtable
+	fUnitsPerEm    int32
+	ascent         int32 // In FUnits.
+	descent        int32 // In FUnits; typically negative.
+	lineGap        int32 // In FUnits.
+	xHeight        int32 // In FUnits; from OS/2 table v2+.
+	capHeight      int32 // In FUnits; from OS/2 table v2+.
+	os2Info        *OS2Info
+	caretSlopeRise int32               // From hhea.
+	caretSlopeRun  int32               // From hhea.
+	bounds         fixed.Rectangle26_6 // In FUnits.
 	// Values from the maxp section.
 	maxTwilightPoints, maxStorage, maxFunctionDefs, maxStackElements uint16
 }

@@ -15,8 +15,8 @@ func TestStemCollection(t *testing.T) {
 	cs = append(cs, encodeCSOperand(20)...)  // width
 	cs = append(cs, encodeCSOperand(200)...) // edge delta (relative)
 	cs = append(cs, encodeCSOperand(30)...)  // width
-	cs = append(cs, 1)                        // hstem
-	cs = append(cs, 14)                       // endchar
+	cs = append(cs, 1)                       // hstem
+	cs = append(cs, 14)                      // endchar
 
 	p := &interp{hintSink: &stemSink{}}
 	if err := p.run(cs); err != nil {

@@ -183,7 +183,7 @@ func TestCharstringCallSubrOutOfRange(t *testing.T) {
 	cs = append(cs, encodeCSOperand(0)...)
 	cs = append(cs, 21)
 	cs = append(cs, encodeCSOperand(500)...) // +107 bias = 607, but only 1 subr
-	cs = append(cs, 10)                       // callsubr
+	cs = append(cs, 10)                      // callsubr
 	cs = append(cs, 14)
 
 	subr := []byte{encodeCSOperand(1)[0], 11}

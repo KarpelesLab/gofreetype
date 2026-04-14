@@ -11,8 +11,8 @@ import "fmt"
 // refer to these standard tables without on-disk data. We only surface
 // their names via GlyphName when appropriate.
 const (
-	predefinedCharsetISOAdobe = 0 // .notdef + ISOAdobeCharset (ISO-Adobe standard set)
-	predefinedCharsetExpert   = 1
+	predefinedCharsetISOAdobe  = 0 // .notdef + ISOAdobeCharset (ISO-Adobe standard set)
+	predefinedCharsetExpert    = 1
 	predefinedCharsetExpSubset = 2
 )
 

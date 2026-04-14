@@ -64,10 +64,10 @@ func (h *HVAR) AdvanceWidthDelta(gid uint16, coords []float64) float64 {
 type deltaSetIndexMap struct {
 	entryFormat uint8
 	// Derived from entryFormat:
-	innerBits      uint8  // low nibble + 1
-	entrySize      int    // (high nibble >> 4) + 1
-	entries        []byte // raw entry bytes, `entrySize` each
-	mapCount       int
+	innerBits uint8  // low nibble + 1
+	entrySize int    // (high nibble >> 4) + 1
+	entries   []byte // raw entry bytes, `entrySize` each
+	mapCount  int
 }
 
 // Format layout:
@@ -84,7 +84,7 @@ func parseDeltaSetIndexMap(data []byte, off int) (*deltaSetIndexMap, error) {
 
 	m := &deltaSetIndexMap{entryFormat: entryFormat}
 	m.innerBits = (entryFormat & 0x0F) + 1
-	m.entrySize = int(((entryFormat>>4)&0x03)+1)
+	m.entrySize = int(((entryFormat >> 4) & 0x03) + 1)
 
 	var bodyStart int
 	if format == 0 {

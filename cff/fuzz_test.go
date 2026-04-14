@@ -14,9 +14,9 @@ func FuzzParse(f *testing.F) {
 	// Minimal-CFF helper (built by test TestParseMinimalCFF already) is
 	// not exported, so we add a few raw seeds and let the fuzzer explore.
 	f.Add([]byte{})
-	f.Add([]byte{1, 0, 4, 2})                   // just the header, no INDEXes
-	f.Add([]byte{1, 0, 4, 2, 0, 0})              // header + empty Name INDEX
-	f.Add([]byte{2, 0, 5, 0})                    // wrong major version
+	f.Add([]byte{1, 0, 4, 2})       // just the header, no INDEXes
+	f.Add([]byte{1, 0, 4, 2, 0, 0}) // header + empty Name INDEX
+	f.Add([]byte{2, 0, 5, 0})       // wrong major version
 	f.Fuzz(func(t *testing.T, data []byte) {
 		font, err := Parse(data)
 		if err != nil || font == nil {

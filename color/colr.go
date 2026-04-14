@@ -37,10 +37,10 @@ type Layer struct {
 //	uint16 glyphID       (the outline to rasterize)
 //	uint16 paletteIndex  (CPAL entry, or 0xFFFF = foreground)
 type COLR struct {
-	data        []byte
-	bases       []baseGlyphRecord
-	layerData   []byte
-	numLayers   int
+	data      []byte
+	bases     []baseGlyphRecord
+	layerData []byte
+	numLayers int
 }
 
 type baseGlyphRecord struct {

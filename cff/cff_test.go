@@ -180,8 +180,8 @@ func TestParseMinimalCFF(t *testing.T) {
 	cff.WriteByte(2) // offSize (unused by our parser)
 	cff.Write(nameIdx)
 	cff.Write(topIdx)
-	cff.Write(empty)      // String INDEX
-	cff.Write(empty)      // Global Subrs INDEX
+	cff.Write(empty) // String INDEX
+	cff.Write(empty) // Global Subrs INDEX
 	cff.Write(charStrings)
 	cff.Write(priv)
 	cff.Write(localSubrs)

@@ -65,7 +65,7 @@ func TestGPOSCursive(t *testing.T) {
 		[]struct {
 			entry, exit *Anchor
 		}{
-			{entry: &Anchor{X: 0, Y: 100}, exit: &Anchor{X: 500, Y: 100}},  // glyph 10
+			{entry: &Anchor{X: 0, Y: 100}, exit: &Anchor{X: 500, Y: 100}}, // glyph 10
 			{entry: &Anchor{X: 0, Y: 100}, exit: nil},                     // glyph 11 (terminal)
 			{entry: nil, exit: &Anchor{X: 500, Y: 100}},                   // glyph 12 (initial)
 		},

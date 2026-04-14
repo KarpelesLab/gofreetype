@@ -16,8 +16,8 @@ import (
 // record.
 func mkCmap(pid, psid uint16, body []byte) []byte {
 	cmap := make([]byte, 12+len(body))
-	binary.BigEndian.PutUint16(cmap[0:], 0)  // version
-	binary.BigEndian.PutUint16(cmap[2:], 1)  // numSubtables
+	binary.BigEndian.PutUint16(cmap[0:], 0) // version
+	binary.BigEndian.PutUint16(cmap[2:], 1) // numSubtables
 	binary.BigEndian.PutUint16(cmap[4:], pid)
 	binary.BigEndian.PutUint16(cmap[6:], psid)
 	binary.BigEndian.PutUint32(cmap[8:], 12) // subtable offset
@@ -271,7 +271,7 @@ func TestCmapFormat6(t *testing.T) {
 func TestCmapFormat4(t *testing.T) {
 	segs := []struct{ start, end, delta uint16 }{
 		{start: 'A', end: 'Z', delta: uint16(-('A' - 1) & 0xffff)}, // 'A' -> 1
-		{start: 0xffff, end: 0xffff, delta: 1},                    // required sentinel
+		{start: 0xffff, end: 0xffff, delta: 1},                     // required sentinel
 	}
 	body := buildFormat4Body(segs)
 	f, err := parseCmapOnly(mkCmap(0, 3, body))
@@ -339,7 +339,7 @@ func TestCmapFormat13(t *testing.T) {
 	// A "Last Resort"-style mapping: every codepoint in a range points to
 	// the same placeholder glyph.
 	body := buildFormat13Body([]struct{ start, end, startGID uint32 }{
-		{start: 'A', end: 'Z', startGID: 7},    // every ASCII letter -> 7
+		{start: 'A', end: 'Z', startGID: 7},       // every ASCII letter -> 7
 		{start: 0x0400, end: 0x04FF, startGID: 8}, // every Cyrillic glyph -> 8
 	})
 	f, err := parseCmapOnly(mkCmap(0, 4, body))

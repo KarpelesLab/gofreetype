@@ -16,8 +16,8 @@ func buildSinglePosFormat1(coverageGIDs []uint16, xAdvance int16) []byte {
 	cov := buildCoverageFormat1(coverageGIDs)
 	// ValueFormat = XAdvance (0x0004).
 	var b []byte
-	encU16(&b, 1)               // format
-	covOff := 8                 // 6 header bytes + 2 valueRecord (xAdvance uint16)
+	encU16(&b, 1) // format
+	covOff := 8   // 6 header bytes + 2 valueRecord (xAdvance uint16)
 	encU16(&b, uint16(covOff))
 	encU16(&b, 0x0004) // valueFormat
 	encI16(&b, xAdvance)
@@ -30,7 +30,7 @@ func buildSinglePosFormat1(coverageGIDs []uint16, xAdvance int16) []byte {
 func buildSinglePosFormat2(coverageGIDs []uint16, xAdvances []int16) []byte {
 	cov := buildCoverageFormat1(coverageGIDs)
 	var b []byte
-	encU16(&b, 2)  // format
+	encU16(&b, 2) // format
 	// Coverage comes after header + per-glyph values.
 	headerLen := 8 // 2 format + 2 covOff + 2 valueFormat + 2 valueCount
 	valuesLen := 2 * len(xAdvances)

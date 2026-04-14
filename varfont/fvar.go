@@ -69,7 +69,7 @@ type VariationAxis struct {
 // NamedInstance is one pre-declared instance in fvar, giving a name and
 // a fixed coordinate vector.
 type NamedInstance struct {
-	Name         uint16   // NameID for the instance name
+	Name         uint16 // NameID for the instance name
 	Flags        uint16
 	Coordinates  []float64 // length == len(Axes); one user-space coord per axis
 	PostScriptID uint16    // NameID for PostScript name (0 if absent)

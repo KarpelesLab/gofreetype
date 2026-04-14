@@ -48,15 +48,15 @@ const (
 // STATAxisValue is one Axis Value Table. Format determines which fields
 // are meaningful.
 type STATAxisValue struct {
-	Format       STATAxisValueFormat
-	AxisIndex    uint16  // formats 1..3
-	Flags        uint16
-	ValueNameID  uint16
-	Value        float64 // formats 1..3
-	RangeMinValue float64 // format 2 only
-	RangeMaxValue float64 // format 2 only
-	LinkedValue  float64 // format 3 only
-	AxisValues   []STATMultiAxisValue // format 4 only
+	Format        STATAxisValueFormat
+	AxisIndex     uint16 // formats 1..3
+	Flags         uint16
+	ValueNameID   uint16
+	Value         float64              // formats 1..3
+	RangeMinValue float64              // format 2 only
+	RangeMaxValue float64              // format 2 only
+	LinkedValue   float64              // format 3 only
+	AxisValues    []STATMultiAxisValue // format 4 only
 }
 
 // STATMultiAxisValue is one (axis index, value) pair in a format-4

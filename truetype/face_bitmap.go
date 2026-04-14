@@ -8,8 +8,8 @@ package truetype
 import (
 	"bytes"
 	"image"
-	"image/png"
 	_ "image/jpeg" // registers JPEG decoder for sbix "jpg " graphic type
+	"image/png"
 
 	"golang.org/x/image/math/fixed"
 )

@@ -23,7 +23,7 @@ import "fmt"
 // BitmapSet is one ppem-specific set of glyph bitmaps parsed from
 // CBLC + CBDT.
 type BitmapSet struct {
-	PPEM    uint8
+	PPEM     uint8
 	BitDepth uint8
 
 	// entries maps glyph id to raw image data. We pre-parse the index at
@@ -33,11 +33,11 @@ type BitmapSet struct {
 
 // BitmapGlyph is a single pre-rendered glyph image from a CBDT table.
 type BitmapGlyph struct {
-	Width, Height       uint8
-	BearingX, BearingY  int8
-	Advance             uint8
-	Format              uint8 // 17 = PNG, 18 = PNG with big metrics, 19 = PNG with no metrics
-	Data                []byte
+	Width, Height      uint8
+	BearingX, BearingY int8
+	Advance            uint8
+	Format             uint8 // 17 = PNG, 18 = PNG with big metrics, 19 = PNG with no metrics
+	Data               []byte
 }
 
 // CBLC is a parsed Color Bitmap Location Table. It references the CBDT

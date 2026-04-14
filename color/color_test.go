@@ -76,8 +76,8 @@ func TestParseCPAL(t *testing.T) {
 
 // buildCOLR builds a synthetic COLR v0 table.
 func buildCOLR(bases []struct {
-	glyphID    uint16
-	layers     []Layer
+	glyphID uint16
+	layers  []Layer
 }) []byte {
 	// Flatten layers.
 	var allLayers []Layer

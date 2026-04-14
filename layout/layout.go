@@ -76,9 +76,9 @@ type Table struct {
 
 // A Script is a parsed Script table record.
 type Script struct {
-	Tag           Tag
-	DefaultLang   *LangSys // may be nil
-	Languages     []Language
+	Tag         Tag
+	DefaultLang *LangSys // may be nil
+	Languages   []Language
 }
 
 // A Language is a parsed LangSys table record.

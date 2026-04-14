@@ -36,11 +36,11 @@ func (e UnsupportedError) Error() string { return "gdef: unsupported: " + string
 
 // Table is a parsed GDEF table.
 type Table struct {
-	Data                  []byte
-	Major, Minor          uint16
-	GlyphClassDef         *layout.ClassDef
-	MarkAttachClassDef    *layout.ClassDef
-	MarkGlyphSets         []*layout.Coverage
+	Data               []byte
+	Major, Minor       uint16
+	GlyphClassDef      *layout.ClassDef
+	MarkAttachClassDef *layout.ClassDef
+	MarkGlyphSets      []*layout.Coverage
 }
 
 // Parse decodes a GDEF table.

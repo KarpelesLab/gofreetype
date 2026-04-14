@@ -72,11 +72,11 @@ func minimalCFFTables() []struct {
 
 	// hhea: 36 bytes. We only care about offsets 4,6,8,18,20,34.
 	hhea := make([]byte, 36)
-	binary.BigEndian.PutUint16(hhea[4:], 800)  // ascent
+	binary.BigEndian.PutUint16(hhea[4:], 800)    // ascent
 	binary.BigEndian.PutUint16(hhea[6:], 0xff38) // descent = -200
-	binary.BigEndian.PutUint16(hhea[8:], 100)  // lineGap
-	binary.BigEndian.PutUint16(hhea[18:], 1)   // caretSlopeRise
-	binary.BigEndian.PutUint16(hhea[34:], 1)   // numberOfHMetrics
+	binary.BigEndian.PutUint16(hhea[8:], 100)    // lineGap
+	binary.BigEndian.PutUint16(hhea[18:], 1)     // caretSlopeRise
+	binary.BigEndian.PutUint16(hhea[34:], 1)     // numberOfHMetrics
 
 	// hmtx: 4*nHMetric + 2*(nGlyph-nHMetric) = 4 bytes for nHMetric=1, nGlyph=1.
 	hmtx := []byte{0x02, 0x00, 0x00, 0x00} // advance=512, lsb=0
