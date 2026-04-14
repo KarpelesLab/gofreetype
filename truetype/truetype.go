@@ -269,7 +269,7 @@ type Font struct {
 	cpal, colr, cbdt, cblc, sbix, svg []byte
 
 	// Variable-font tables, all optional.
-	fvar, avar, gvar, hvar, mvar []byte
+	fvar, avar, gvar, hvar, mvar, stat []byte
 
 	// cffFont is the parsed CFF v1 container, populated only for CFF fonts.
 	cffFont *cff.Font
@@ -293,6 +293,7 @@ type Font struct {
 	gvarTable *varfont.GVar
 	hvarTable *varfont.HVAR
 	mvarTable *varfont.MVAR
+	statTable *varfont.STAT
 	// variationCoords holds the current normalized axis coordinates
 	// (len == len(fvarTable.Axes)). All zero = default instance.
 	variationCoords []float64
@@ -929,6 +930,9 @@ func (f *Font) HVAR() *varfont.HVAR { return f.hvarTable }
 // MVAR returns the parsed MVAR (metric variations) table, or nil if absent.
 func (f *Font) MVAR() *varfont.MVAR { return f.mvarTable }
 
+// STAT returns the parsed STAT (style attributes) table, or nil if absent.
+func (f *Font) STAT() *varfont.STAT { return f.statTable }
+
 // IsVariable reports whether the font has variable-font data. Variable
 // fonts apply per-axis deltas to glyph outlines at load time.
 func (f *Font) IsVariable() bool { return f.fvarTable != nil && f.gvarTable != nil }
@@ -1380,6 +1384,8 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 			f.hvar, err = readTable(ttf, ttf[x+8:x+16])
 		case "MVAR":
 			f.mvar, err = readTable(ttf, ttf[x+8:x+16])
+		case "STAT":
+			f.stat, err = readTable(ttf, ttf[x+8:x+16])
 		}
 		if err != nil {
 			return
@@ -1497,6 +1503,11 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 	if len(f.mvar) > 0 {
 		if mv, mvErr := varfont.ParseMVAR(f.mvar); mvErr == nil {
 			f.mvarTable = mv
+		}
+	}
+	if len(f.stat) > 0 {
+		if st, stErr := varfont.ParseSTAT(f.stat); stErr == nil {
+			f.statTable = st
 		}
 	}
 
