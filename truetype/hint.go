@@ -799,7 +799,9 @@ func (h *hinter) run(program []byte, pCurrent, pUnhinted, pInFontUnits []Point, 
 
 		case opMD0, opMD1:
 			top--
-			pt, v, scale := pointType(0), [2]f2dot14{}, false
+			var pt pointType
+			var v [2]f2dot14
+			var scale bool
 			if opcode == opMD0 {
 				pt = current
 				v = h.gs.pv

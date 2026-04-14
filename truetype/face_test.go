@@ -8,7 +8,7 @@ package truetype
 import (
 	"image"
 	"image/draw"
-	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 
@@ -17,12 +17,12 @@ import (
 )
 
 func BenchmarkDrawString(b *testing.B) {
-	data, err := ioutil.ReadFile("../licenses/gpl.txt")
+	data, err := os.ReadFile("../licenses/gpl.txt")
 	if err != nil {
 		b.Fatal(err)
 	}
 	lines := strings.Split(string(data), "\n")
-	data, err = ioutil.ReadFile("../testdata/luxisr.ttf")
+	data, err = os.ReadFile("../testdata/luxisr.ttf")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func BenchmarkDrawString(b *testing.B) {
 		b.Fatal(err)
 	}
 	dst := image.NewRGBA(image.Rect(0, 0, 800, 600))
-	draw.Draw(dst, dst.Bounds(), image.White, image.ZP, draw.Src)
+	draw.Draw(dst, dst.Bounds(), image.White, image.Point{}, draw.Src)
 	d := &font.Drawer{
 		Dst:  dst,
 		Src:  image.Black,

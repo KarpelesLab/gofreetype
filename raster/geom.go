@@ -77,17 +77,6 @@ func pRot90CW(p fixed.Point26_6) fixed.Point26_6 {
 	return fixed.Point26_6{X: -p.Y, Y: p.X}
 }
 
-// pRot135CW returns the vector p rotated clockwise by 135 degrees.
-//
-// Note that the Y-axis grows downwards, so {1, 0}.Rot135CW is {-1/√2, 1/√2}.
-func pRot135CW(p fixed.Point26_6) fixed.Point26_6 {
-	// 181/256 is approximately 1/√2, or sin(π/4).
-	px, py := int64(p.X), int64(p.Y)
-	qx := (-px - py) * 181 / 256
-	qy := (+px - py) * 181 / 256
-	return fixed.Point26_6{X: fixed.Int26_6(qx), Y: fixed.Int26_6(qy)}
-}
-
 // pRot45CCW returns the vector p rotated counter-clockwise by 45 degrees.
 //
 // Note that the Y-axis grows downwards, so {1, 0}.Rot45CCW is {1/√2, -1/√2}.
@@ -106,16 +95,6 @@ func pRot90CCW(p fixed.Point26_6) fixed.Point26_6 {
 	return fixed.Point26_6{X: p.Y, Y: -p.X}
 }
 
-// pRot135CCW returns the vector p rotated counter-clockwise by 135 degrees.
-//
-// Note that the Y-axis grows downwards, so {1, 0}.Rot135CCW is {-1/√2, -1/√2}.
-func pRot135CCW(p fixed.Point26_6) fixed.Point26_6 {
-	// 181/256 is approximately 1/√2, or sin(π/4).
-	px, py := int64(p.X), int64(p.Y)
-	qx := (-px + py) * 181 / 256
-	qy := (-px - py) * 181 / 256
-	return fixed.Point26_6{X: fixed.Int26_6(qx), Y: fixed.Int26_6(qy)}
-}
 
 // An Adder accumulates points on a curve.
 type Adder interface {

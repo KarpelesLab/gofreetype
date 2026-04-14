@@ -106,41 +106,41 @@ func Parse(data []byte) (*Font, error) {
 	// Name INDEX.
 	nameIndex, off, err := parseIndex(data, hdrSize)
 	if err != nil {
-		return nil, fmt.Errorf("Name INDEX: %w", err)
+		return nil, fmt.Errorf("name INDEX: %w", err)
 	}
 	if len(nameIndex) == 0 {
-		return nil, FormatError("empty Name INDEX")
+		return nil, FormatError("empty name INDEX")
 	}
 	f.PostScriptName = string(nameIndex[0])
 
 	// Top DICT INDEX — one entry per font.
 	topDictIndex, off, err := parseIndex(data, off)
 	if err != nil {
-		return nil, fmt.Errorf("Top DICT INDEX: %w", err)
+		return nil, fmt.Errorf("top DICT INDEX: %w", err)
 	}
 	if len(topDictIndex) != len(nameIndex) {
-		return nil, FormatError("Name INDEX / Top DICT INDEX size mismatch")
+		return nil, FormatError("name INDEX / top DICT INDEX size mismatch")
 	}
 	topDict := topDictIndex[0]
 
 	// String INDEX.
 	stringIndex, off, err := parseIndex(data, off)
 	if err != nil {
-		return nil, fmt.Errorf("String INDEX: %w", err)
+		return nil, fmt.Errorf("string INDEX: %w", err)
 	}
 	f.strings = stringIndex
 
 	// Global Subr INDEX.
 	globalSubrs, _, err := parseIndex(data, off)
 	if err != nil {
-		return nil, fmt.Errorf("Global Subr INDEX: %w", err)
+		return nil, fmt.Errorf("global subr INDEX: %w", err)
 	}
 	f.GlobalSubrs = globalSubrs
 
 	// Parse the Top DICT to find per-font offsets.
 	td, err := parseTopDict(topDict)
 	if err != nil {
-		return nil, fmt.Errorf("Top DICT: %w", err)
+		return nil, fmt.Errorf("top DICT: %w", err)
 	}
 	if td.hasFontMatrix {
 		f.FontMatrix = td.fontMatrix
@@ -191,7 +191,7 @@ func parseSIDFont(f *Font, td *topDict) error {
 	priv := f.Data[td.privateOffset : td.privateOffset+td.privateSize]
 	pd, err := parsePrivateDict(priv)
 	if err != nil {
-		return fmt.Errorf("Private DICT: %w", err)
+		return fmt.Errorf("private DICT: %w", err)
 	}
 	f.DefaultWidthX = pd.defaultWidthX
 	f.NominalWidthX = pd.nominalWidthX
@@ -201,7 +201,7 @@ func parseSIDFont(f *Font, td *topDict) error {
 		subrsOffAbs := td.privateOffset + pd.subrsOffset
 		locals, _, err := parseIndex(f.Data, subrsOffAbs)
 		if err != nil {
-			return fmt.Errorf("Local Subr INDEX: %w", err)
+			return fmt.Errorf("local subr INDEX: %w", err)
 		}
 		f.LocalSubrs = locals
 	}

@@ -9,7 +9,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -20,7 +19,7 @@ import (
 )
 
 func parseTestdataFont(name string) (f *Font, testdataIsOptional bool, err error) {
-	b, err := ioutil.ReadFile(fmt.Sprintf("../testdata/%s.ttf", name))
+	b, err := os.ReadFile(fmt.Sprintf("../testdata/%s.ttf", name))
 	if err != nil {
 		// The "x-foo" fonts are optional tests, as they are not checked
 		// in for copyright or file size reasons.
@@ -260,7 +259,7 @@ func scalingTestParse(line string) (ret scalingTestData) {
 	prefix, ret.bounds.Min.X = next(prefix)
 	prefix, ret.bounds.Min.Y = next(prefix)
 	prefix, ret.bounds.Max.X = next(prefix)
-	prefix, ret.bounds.Max.Y = next(prefix)
+	_, ret.bounds.Max.Y = next(prefix)
 
 	ret.points = make([]Point, 0, 1+strings.Count(line, ","))
 	for len(line) > 0 {
@@ -275,7 +274,7 @@ func scalingTestParse(line string) (ret scalingTestData) {
 		}
 		s, x := next(s)
 		s, y := next(s)
-		s, f := next(s)
+		_, f := next(s)
 		ret.points = append(ret.points, Point{X: x, Y: y, Flags: uint32(f)})
 	}
 	return ret

@@ -6,7 +6,7 @@
 package truetype
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"golang.org/x/image/font"
@@ -22,7 +22,7 @@ import (
 //	go test -fuzz=FuzzParse ./truetype/
 func FuzzParse(f *testing.F) {
 	// Seed with the real luxisr.ttf plus a handful of edge-case inputs.
-	if data, err := ioutil.ReadFile("../testdata/luxisr.ttf"); err == nil {
+	if data, err := os.ReadFile("../testdata/luxisr.ttf"); err == nil {
 		f.Add(data)
 	}
 	f.Add([]byte{})
@@ -49,7 +49,7 @@ func FuzzParse(f *testing.F) {
 
 // FuzzParseIndex hardens the TTC dispatch path.
 func FuzzParseIndex(f *testing.F) {
-	if data, err := ioutil.ReadFile("../testdata/luxisr.ttf"); err == nil {
+	if data, err := os.ReadFile("../testdata/luxisr.ttf"); err == nil {
 		f.Add(data, 0)
 		f.Add(data, 1)
 		f.Add(data, -1)

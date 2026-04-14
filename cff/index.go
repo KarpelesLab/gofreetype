@@ -89,7 +89,3 @@ func u16(b []byte, i int) uint16 {
 	return uint16(b[i])<<8 | uint16(b[i+1])
 }
 
-// u32 returns the big-endian uint32 at b[i:].
-func u32(b []byte, i int) uint32 {
-	return uint32(b[i])<<24 | uint32(b[i+1])<<16 | uint32(b[i+2])<<8 | uint32(b[i+3])
-}

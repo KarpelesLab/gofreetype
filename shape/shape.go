@@ -18,7 +18,6 @@
 package shape
 
 import (
-	"github.com/KarpelesLab/gofreetype/gdef"
 	"github.com/KarpelesLab/gofreetype/gpos"
 	"github.com/KarpelesLab/gofreetype/gsub"
 	"github.com/KarpelesLab/gofreetype/layout"
@@ -193,10 +192,6 @@ func enabledLookupIndices(tbl *layout.Table, opts Options, features []layout.Tag
 	return out
 }
 
-// gdefOf returns the font's GDEF table, or nil.
-func gdefOf(f *truetype.Font) *gdef.Table { return f.GDEF() }
-
-// gsubOf and gposOf are likewise trivial accessors — named for symmetry
-// with gdefOf so the runGSUB/runGPOS drivers read cleanly.
+// gsubOf and gposOf are trivial accessors used by the run drivers.
 func gsubOf(f *truetype.Font) *gsub.Table { return f.GSUB() }
 func gposOf(f *truetype.Font) *gpos.Table { return f.GPOS() }

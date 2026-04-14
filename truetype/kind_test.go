@@ -7,7 +7,7 @@ package truetype
 
 import (
 	"encoding/binary"
-	"io/ioutil"
+	"os"
 	"testing"
 )
 
@@ -232,7 +232,7 @@ func TestParseOpenTypeCFF(t *testing.T) {
 }
 
 func TestParseTrueTypeKind(t *testing.T) {
-	data, err := ioutil.ReadFile("../testdata/luxisr.ttf")
+	data, err := os.ReadFile("../testdata/luxisr.ttf")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -40,24 +40,24 @@ type NameID uint16
 
 const (
 	NameIDCopyright          NameID = 0
-	NameIDFontFamily                = 1
-	NameIDFontSubfamily             = 2
-	NameIDUniqueSubfamilyID         = 3
-	NameIDFontFullName              = 4
-	NameIDNameTableVersion          = 5
-	NameIDPostscriptName            = 6
-	NameIDTrademarkNotice           = 7
-	NameIDManufacturerName          = 8
-	NameIDDesignerName              = 9
-	NameIDFontDescription           = 10
-	NameIDFontVendorURL             = 11
-	NameIDFontDesignerURL           = 12
-	NameIDFontLicense               = 13
-	NameIDFontLicenseURL            = 14
-	NameIDPreferredFamily           = 16
-	NameIDPreferredSubfamily        = 17
-	NameIDCompatibleName            = 18
-	NameIDSampleText                = 19
+	NameIDFontFamily         NameID = 1
+	NameIDFontSubfamily      NameID = 2
+	NameIDUniqueSubfamilyID  NameID = 3
+	NameIDFontFullName       NameID = 4
+	NameIDNameTableVersion   NameID = 5
+	NameIDPostscriptName     NameID = 6
+	NameIDTrademarkNotice    NameID = 7
+	NameIDManufacturerName   NameID = 8
+	NameIDDesignerName       NameID = 9
+	NameIDFontDescription    NameID = 10
+	NameIDFontVendorURL      NameID = 11
+	NameIDFontDesignerURL    NameID = 12
+	NameIDFontLicense        NameID = 13
+	NameIDFontLicenseURL     NameID = 14
+	NameIDPreferredFamily    NameID = 16
+	NameIDPreferredSubfamily NameID = 17
+	NameIDCompatibleName     NameID = 18
+	NameIDSampleText         NameID = 19
 )
 
 const (
@@ -709,7 +709,6 @@ func (f *Font) IndexWithVariation(base, vs rune) Index {
 			j = h
 		} else {
 			i = h
-			j = h + 1
 			break
 		}
 	}

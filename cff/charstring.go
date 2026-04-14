@@ -96,8 +96,8 @@ type interp struct {
 	x, y        float64
 	contourOpen bool
 
-	// callStack tracks nested callsubr/callgsubr recursion.
-	callStack [10]subrFrame
+	// callDepth tracks nested callsubr/callgsubr recursion; bounded by
+	// maxSubrDepth to reject malicious or corrupt fonts.
 	callDepth int
 
 	// Hint counters (we don't implement hinting; we just need to skip
@@ -120,13 +120,9 @@ type interp struct {
 	ops int
 }
 
-type subrFrame struct {
-	code []byte
-	pc   int
-}
-
 const (
 	maxCharstringOps = 100000
+	maxSubrDepth     = 10
 )
 
 func (p *interp) run(code []byte) error {
@@ -528,7 +524,7 @@ func (p *interp) callSubr(subrs [][]byte, global bool) error {
 	if p.sp < 1 {
 		return fmt.Errorf("callsubr with empty stack")
 	}
-	if p.callDepth >= len(p.callStack) {
+	if p.callDepth >= maxSubrDepth {
 		return fmt.Errorf("subr recursion too deep")
 	}
 	idx := int(p.stack[p.sp-1])

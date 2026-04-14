@@ -34,28 +34,7 @@ func buildMiniPFB() []byte {
 	// begin" marker. Each charstring is emitted as
 	//     "/A <length> -| <body> |-"
 	// where <body> is the encrypted charstring bytes.
-	csAPlain := []byte{
-		// hsbw 0 500
-		0x8b,     // push 0 (b=139)
-		247, 140, // push 500 (500-108=392 -> 247 + (392>>8), 392&0xff). 392 >> 8 = 1, 247+1=248; &0xff=136.
-		13, // hsbw
-		// rmoveto 10 10
-		encNum1(10), encNum1(10),
-		21, // rmoveto
-		// rlineto 20 0
-		encNum1(20), encNum1(0),
-		5,
-		// rlineto 0 30
-		encNum1(0), encNum1(30),
-		5,
-		// rlineto -20 0
-		encNumNeg1(-20), encNum1(0),
-		5,
-		9,  // closepath
-		14, // endchar
-	}
-	// Fix the 500-encoding — easier to use the helper.
-	csAPlain = []byte{}
+	var csAPlain []byte
 	for _, n := range []int{0, 500} {
 		csAPlain = append(csAPlain, encNumBytes(n)...)
 	}
@@ -107,11 +86,6 @@ func buildMiniPFB() []byte {
 }
 
 func encNumBytes(v int) []byte { return encNum(v) }
-
-// Silence unused-var warnings in the scaffolding above.
-func encNum1(v int) byte { return encNum(v)[0] }
-
-func encNumNeg1(v int) byte { return encNum(v)[0] }
 
 func TestParseMiniPFB(t *testing.T) {
 	f, err := Parse(buildMiniPFB())

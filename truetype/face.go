@@ -154,12 +154,6 @@ func subPixels(q int) (value uint32, bias, mask fixed.Int26_6) {
 	return uint32(q), 32 / fixed.Int26_6(q), -64 / fixed.Int26_6(q)
 }
 
-// glyphCacheEntry caches the arguments and return values of rasterize.
-type glyphCacheEntry struct {
-	key glyphCacheKey
-	val glyphCacheVal
-}
-
 type glyphCacheKey struct {
 	index  Index
 	fx, fy uint8

@@ -256,7 +256,7 @@ func (c *Context) DrawString(s string, p fixed.Point26_6) (fixed.Point26_6, erro
 		dr := c.clip.Intersect(glyphRect)
 		if !dr.Empty() {
 			mp := image.Point{0, dr.Min.Y - glyphRect.Min.Y}
-			draw.DrawMask(c.dst, dr, c.src, image.ZP, mask, mp, draw.Over)
+			draw.DrawMask(c.dst, dr, c.src, image.Point{}, mask, mp, draw.Over)
 		}
 		prev, hasPrev = index, true
 	}
