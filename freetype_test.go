@@ -16,6 +16,69 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
+func TestDrawStringEndToEnd(t *testing.T) {
+	data, err := os.ReadFile("testdata/luxisr.ttf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := ParseFont(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, 400, 80))
+	draw.Draw(dst, dst.Bounds(), image.White, image.Point{}, draw.Src)
+
+	c := NewContext()
+	c.SetDPI(72)
+	c.SetFont(f)
+	c.SetFontSize(14)
+	c.SetClip(dst.Bounds())
+	c.SetDst(dst)
+	c.SetSrc(image.Black)
+	c.SetHinting(0) // font.HintingNone
+
+	end, err := c.DrawString("Hello, world!", Pt(10, 40))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if end.X <= fixed.I(10) {
+		t.Errorf("DrawString should advance the pen; got end.X = %v", end.X)
+	}
+	// Some non-white pixels should appear.
+	nonWhite := 0
+	for y := 0; y < dst.Rect.Dy(); y++ {
+		for x := 0; x < dst.Rect.Dx(); x++ {
+			r, g, b, _ := dst.At(x, y).RGBA()
+			if r < 0xff00 || g < 0xff00 || b < 0xff00 {
+				nonWhite++
+			}
+		}
+	}
+	if nonWhite == 0 {
+		t.Error("DrawString rendered no non-white pixels")
+	}
+
+	// PointToFixed round-trip.
+	if got := c.PointToFixed(14); got == 0 {
+		t.Errorf("PointToFixed(14) returned zero")
+	}
+}
+
+func TestContextSetters(t *testing.T) {
+	c := NewContext()
+	// No-op setters should not panic.
+	c.SetDPI(96)
+	c.SetDPI(96) // same value — early return path
+	c.SetFontSize(10)
+	c.SetFontSize(10)
+	c.SetHinting(0)
+	c.SetHinting(0)
+	// DrawString with no font set must error.
+	if _, err := c.DrawString("x", Pt(0, 0)); err == nil {
+		t.Error("DrawString without a font should error")
+	}
+}
+
 func TestSetGammaInvalidatesCache(t *testing.T) {
 	c := NewContext()
 	// Populate a cache entry — any valid one will do; we'll just mutate
