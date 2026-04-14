@@ -73,6 +73,12 @@ type Font struct {
 	// FDDefaultWidthX / FDNominalWidthX are per-FD width parameters.
 	FDDefaultWidthX []float64
 	FDNominalWidthX []float64
+
+	// strings holds the CFF String INDEX (indexed by SID - 391).
+	strings [][]byte
+	// charset maps glyph id -> SID (for SID-keyed fonts) or CID
+	// (for CID-keyed fonts).
+	charset []uint16
 }
 
 // Parse parses a CFF v1 table.
@@ -122,7 +128,7 @@ func Parse(data []byte) (*Font, error) {
 	if err != nil {
 		return nil, fmt.Errorf("String INDEX: %w", err)
 	}
-	_ = stringIndex // Not used yet — reserved for Name/Notice/FullName resolution later.
+	f.strings = stringIndex
 
 	// Global Subr INDEX.
 	globalSubrs, _, err := parseIndex(data, off)
@@ -154,6 +160,12 @@ func Parse(data []byte) (*Font, error) {
 	}
 	f.CharStrings = charStrings
 	f.NumGlyphs = len(charStrings)
+
+	// Charset (per-glyph SID / CID). Optional; absence leaves glyph names
+	// unresolvable but doesn't fail the parse.
+	if cs, err := parseCharset(data, td.charsetOffset, f.NumGlyphs); err == nil {
+		f.charset = cs
+	}
 
 	if td.isCID {
 		if err := parseCIDFont(f, td); err != nil {

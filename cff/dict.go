@@ -24,6 +24,7 @@ type topDict struct {
 	privateOffset     int
 	fdArrayOffset     int
 	fdSelectOffset    int
+	charsetOffset     int
 	isCID             bool
 }
 
@@ -107,7 +108,10 @@ func applyTopOp(td *topDict, op uint16, opr []float64) error {
 			td.hasFontMatrix = true
 			copy(td.fontMatrix[:], opr)
 		}
-	case 15: // charset — offset (unused by us currently)
+	case 15: // charset
+		if len(opr) == 1 {
+			td.charsetOffset = int(opr[0])
+		}
 	case 16: // Encoding — offset (unused by us currently)
 	case 17: // CharStrings
 		if len(opr) == 1 {

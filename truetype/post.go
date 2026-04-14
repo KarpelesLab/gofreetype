@@ -176,9 +176,17 @@ func parsePascalStrings(data []byte) ([]string, error) {
 }
 
 // GlyphName returns the PostScript name of glyph i, or the empty string
-// when the font has no post table, no v1/v2 post table, or no name for
-// that glyph.
+// when no glyph-name source is available for this glyph.
+//
+// The lookup order is: CFF charset (for OpenType/CFF fonts), then post
+// table (for TrueType). Callers don't need to know which outline format
+// the font uses.
 func (f *Font) GlyphName(i Index) string {
+	if f.cffFont != nil {
+		if name := f.cffFont.GlyphName(int(i)); name != "" {
+			return name
+		}
+	}
 	if f.postInfo == nil {
 		return ""
 	}
