@@ -323,6 +323,7 @@ type Font struct {
 	lineGap                 int32 // In FUnits.
 	xHeight                 int32 // In FUnits; from OS/2 table v2+.
 	capHeight               int32 // In FUnits; from OS/2 table v2+.
+	os2Info                 *OS2Info
 	caretSlopeRise          int32 // From hhea.
 	caretSlopeRun           int32 // From hhea.
 	bounds                  fixed.Rectangle26_6 // In FUnits.
@@ -1472,6 +1473,7 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 		return
 	}
 	f.parseOS2()
+	f.parseOS2Info()
 	if len(f.post) > 0 {
 		_ = f.parsePost(f.post)
 	}
