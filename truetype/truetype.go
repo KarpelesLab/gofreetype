@@ -311,6 +311,12 @@ type Font struct {
 	cm                       []cm
 	locaOffsetFormat        int
 	nGlyph, nHMetric, nKern int
+
+	// kernSubtables lists each format-0 horizontal kern subtable in the
+	// font's kern table. Kern() looks up pairs in each subtable and sums
+	// the results (standard "additive" semantics). Empty for fonts with
+	// no kern table or no usable subtables.
+	kernSubtables []kernSubtable
 	fUnitsPerEm             int32
 	ascent                  int32 // In FUnits.
 	descent                 int32 // In FUnits; typically negative.
@@ -776,6 +782,14 @@ func (f *Font) parseHhea() error {
 	return nil
 }
 
+// kernSubtable records a parsed format-0 horizontal kern subtable:
+// pairsOffset is the absolute offset in f.kern where the 6-byte pair
+// records start, pairCount is how many pairs the subtable carries.
+type kernSubtable struct {
+	pairsOffset int
+	pairCount   int
+}
+
 func (f *Font) parseKern() error {
 	// Apple's TrueType documentation (http://developer.apple.com/fonts/TTRefMan/RM06/Chap6kern.html) says:
 	// "Previous versions of the 'kern' table defined both the version and nTables fields in the header
@@ -787,41 +801,75 @@ func (f *Font) parseKern() error {
 	// Since we expect that almost all fonts aim to be Windows-compatible, we only parse the "older" format,
 	// just like the C Freetype implementation.
 	if len(f.kern) == 0 {
-		if f.nKern != 0 {
-			return FormatError("bad kern table length")
-		}
 		return nil
 	}
-	if len(f.kern) < 18 {
+	if len(f.kern) < 4 {
 		return FormatError("kern data too short")
 	}
-	version, offset := u16(f.kern, 0), 2
+	version := u16(f.kern, 0)
 	if version != 0 {
 		return UnsupportedError(fmt.Sprintf("kern version: %d", version))
 	}
-
-	n, offset := u16(f.kern, offset), offset+2
+	n := int(u16(f.kern, 2))
 	if n == 0 {
-		return UnsupportedError("kern nTables: 0")
+		return nil
 	}
-	// TODO: support multiple subtables. In practice, almost all .ttf files
-	// have only one subtable, if they have a kern table at all. But it's not
-	// impossible. Xolonium Regular (https://fontlibrary.org/en/font/xolonium)
-	// has 3 subtables. Those subtables appear to be disjoint, rather than
-	// being the same kerning pairs encoded in three different ways.
-	//
-	// For now, we'll use only the first subtable.
 
-	offset += 2 // Skip the version.
-	length, offset := int(u16(f.kern, offset)), offset+2
-	coverage, offset := u16(f.kern, offset), offset+2
-	if coverage != 0x0001 {
-		// We only support horizontal kerning.
-		return UnsupportedError(fmt.Sprintf("kern coverage: 0x%04x", coverage))
+	// Walk each subtable. The 6-byte subtable header is: version (2),
+	// length (2), coverage (2). The length field includes the header.
+	offset := 4
+	for i := 0; i < n; i++ {
+		if offset+6 > len(f.kern) {
+			return FormatError("kern subtable header truncated")
+		}
+		length := int(u16(f.kern, offset+2))
+		coverage := u16(f.kern, offset+4)
+		// Coverage: low byte is format; high byte is flags (bit 0 =
+		// horizontal, bit 1 = minimum values, bit 2 = cross-stream,
+		// bit 3 = override). We only handle format 0 horizontal.
+		format := coverage & 0xFF
+		horizontal := coverage&0x0100 != 0 // Apple: high bit of coverage byte
+		// The Microsoft variant packs coverage differently: the spec
+		// says the low byte is flags and the high byte is format.
+		// Detect both: if the low nibble of the low byte matches a
+		// known format (0) AND the pair count makes sense, trust that.
+		// Most Windows kern tables use (format=0 high byte, horizontal
+		// bit 0 in the low byte).
+		msFormat := uint16(coverage>>8) & 0xFF
+		msHorizontal := coverage&0x0001 != 0
+		var useFormat uint16
+		var useHorizontal bool
+		if msFormat == 0 {
+			useFormat = msFormat
+			useHorizontal = msHorizontal
+		} else {
+			useFormat = format
+			useHorizontal = horizontal
+		}
+		if useFormat != 0 || !useHorizontal {
+			// Skip unsupported subtables rather than fail the whole parse.
+			offset += length
+			continue
+		}
+		if offset+14 > len(f.kern) {
+			return FormatError("kern subtable body truncated")
+		}
+		pairCount := int(u16(f.kern, offset+6))
+		pairsStart := offset + 14
+		if pairsStart+6*pairCount > len(f.kern) {
+			return FormatError("kern pair records truncated")
+		}
+		f.kernSubtables = append(f.kernSubtables, kernSubtable{
+			pairsOffset: pairsStart,
+			pairCount:   pairCount,
+		})
+		offset += length
 	}
-	f.nKern, offset = int(u16(f.kern, offset)), offset+2
-	if 6*f.nKern != length-14 {
-		return FormatError("bad kern table length")
+
+	// Preserve legacy nKern field (first subtable's pair count) for
+	// backwards compatibility with any callers reading it directly.
+	if len(f.kernSubtables) > 0 {
+		f.nKern = f.kernSubtables[0].pairCount
 	}
 	return nil
 }
@@ -1163,23 +1211,30 @@ func (f *Font) VMetric(scale fixed.Int26_6, i Index) VMetric {
 // Kern returns the horizontal adjustment for the given glyph pair. A positive
 // kern means to move the glyphs further apart.
 func (f *Font) Kern(scale fixed.Int26_6, i0, i1 Index) fixed.Int26_6 {
-	if f.nKern == 0 {
+	if len(f.kernSubtables) == 0 {
 		return 0
 	}
 	g := uint32(i0)<<16 | uint32(i1)
-	lo, hi := 0, f.nKern
-	for lo < hi {
-		i := (lo + hi) / 2
-		ig := u32(f.kern, 18+6*i)
-		if ig < g {
-			lo = i + 1
-		} else if ig > g {
-			hi = i
-		} else {
-			return f.scale(scale * fixed.Int26_6(int16(u16(f.kern, 22+6*i))))
+	total := fixed.Int26_6(0)
+	for _, sub := range f.kernSubtables {
+		lo, hi := 0, sub.pairCount
+		for lo < hi {
+			i := (lo + hi) / 2
+			ig := u32(f.kern, sub.pairsOffset+6*i)
+			if ig < g {
+				lo = i + 1
+			} else if ig > g {
+				hi = i
+			} else {
+				total += fixed.Int26_6(int16(u16(f.kern, sub.pairsOffset+4+6*i)))
+				break
+			}
 		}
 	}
-	return 0
+	if total == 0 {
+		return 0
+	}
+	return f.scale(scale * total)
 }
 
 // Parse returns a new Font for the given TTF or TTC data.
