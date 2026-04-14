@@ -1192,6 +1192,73 @@ func Parse(ttf []byte) (font *Font, err error) {
 	return parse(ttf, 0)
 }
 
+// ParseIndex parses the i-th font inside a TrueType Collection (.ttc) or
+// OpenType Collection. For a plain single-font .ttf / .otf, only i == 0
+// is valid. WOFF-wrapped collections are unwrapped transparently.
+//
+// Use NumFonts to determine how many fonts a TTC contains before
+// calling ParseIndex.
+func ParseIndex(data []byte, i int) (*Font, error) {
+	if woff.IsWOFF(data) {
+		unwrapped, err := woff.Decode(data)
+		if err != nil {
+			return nil, err
+		}
+		data = unwrapped
+	}
+	if len(data) < 12 {
+		return nil, FormatError("TTF data is too short")
+	}
+	magic := u32(data, 0)
+	if magic != 0x74746366 {
+		// Not a collection: only i == 0 makes sense.
+		if i != 0 {
+			return nil, FormatError(fmt.Sprintf("font index %d but not a TTC", i))
+		}
+		return Parse(data)
+	}
+	// ttcf header.
+	if len(data) < 12 {
+		return nil, FormatError("TTC header too short")
+	}
+	ttcVersion := u32(data, 4)
+	if ttcVersion != 0x00010000 && ttcVersion != 0x00020000 {
+		return nil, FormatError("bad TTC version")
+	}
+	n := int(u32(data, 8))
+	if n <= 0 || i < 0 || i >= n {
+		return nil, FormatError(fmt.Sprintf("font index %d out of range [0, %d)", i, n))
+	}
+	offArray := 12
+	if offArray+4*n > len(data) {
+		return nil, FormatError("TTC offset table truncated")
+	}
+	fontOffset := int(u32(data, offArray+4*i))
+	if fontOffset <= 0 || fontOffset >= len(data) {
+		return nil, FormatError("bad TTC font offset")
+	}
+	return parse(data, fontOffset)
+}
+
+// NumFonts returns the number of fonts in a .ttc / .otc collection, or 1
+// for a plain single-font file. WOFF-wrapped input is unwrapped first.
+func NumFonts(data []byte) (int, error) {
+	if woff.IsWOFF(data) {
+		unwrapped, err := woff.Decode(data)
+		if err != nil {
+			return 0, err
+		}
+		data = unwrapped
+	}
+	if len(data) < 12 {
+		return 0, FormatError("font data too short")
+	}
+	if u32(data, 0) != 0x74746366 {
+		return 1, nil
+	}
+	return int(u32(data, 8)), nil
+}
+
 func parse(ttf []byte, offset int) (font *Font, err error) {
 	if len(ttf)-offset < 12 {
 		err = FormatError("TTF data is too short")
