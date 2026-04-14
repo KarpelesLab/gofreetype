@@ -183,21 +183,17 @@ type indexCacheEntry struct {
 //
 // The Font itself is safe for concurrent use after parsing.
 func NewFace(f *Font, opts *Options) font.Face {
+	capacity := opts.glyphCacheEntries()
 	a := &face{
-		f:          f,
-		hinting:    opts.hinting(),
-		scale:      fixed.Int26_6(0.5 + (opts.size() * opts.dpi() * 64 / 72)),
-		glyphCache: make([]glyphCacheEntry, opts.glyphCacheEntries()),
+		f:       f,
+		hinting: opts.hinting(),
+		scale:   fixed.Int26_6(0.5 + (opts.size() * opts.dpi() * 64 / 72)),
+		lru:     newGlyphLRU(capacity),
 	}
 	a.subPixelX, a.subPixelBiasX, a.subPixelMaskX = opts.subPixelsX()
 	a.subPixelY, a.subPixelBiasY, a.subPixelMaskY = opts.subPixelsY()
 	a.advanceCache = make(map[rune]fixed.Int26_6)
 
-	// Fill the cache with invalid entries. Valid glyph cache entries have fx
-	// and fy in the range [0, 64). Valid index cache entries have rune >= 0.
-	for i := range a.glyphCache {
-		a.glyphCache[i].key.fy = 0xff
-	}
 	for i := range a.indexCache {
 		a.indexCache[i].rune = -1
 	}
@@ -210,7 +206,7 @@ func NewFace(f *Font, opts *Options) font.Face {
 	ymax := -int(b.Min.Y-63) >> 6
 	a.maxw = xmax - xmin
 	a.maxh = ymax - ymin
-	a.masks = image.NewAlpha(image.Rect(0, 0, a.maxw, a.maxh*len(a.glyphCache)))
+	a.masks = image.NewAlpha(image.Rect(0, 0, a.maxw, a.maxh*capacity))
 	a.r.SetBounds(a.maxw, a.maxh)
 	a.p = facePainter{a}
 
@@ -228,7 +224,7 @@ type face struct {
 	subPixelBiasY fixed.Int26_6
 	subPixelMaskY fixed.Int26_6
 	masks         *image.Alpha
-	glyphCache    []glyphCacheEntry
+	lru           *glyphLRU
 	r             raster.Rasterizer
 	p             raster.Painter
 	paintOffset   int
@@ -297,26 +293,24 @@ func (a *face) Glyph(dot fixed.Point26_6, r rune) (
 	iy, fy := int(dotY>>6), dotY&0x3f
 
 	index := a.index(r)
-	cIndex := uint32(index)
-	cIndex = cIndex*a.subPixelX - uint32(fx/a.subPixelMaskX)
-	cIndex = cIndex*a.subPixelY - uint32(fy/a.subPixelMaskY)
-	cIndex &= uint32(len(a.glyphCache) - 1)
-	a.paintOffset = a.maxh * int(cIndex)
 	k := glyphCacheKey{
 		index: index,
 		fx:    uint8(fx),
 		fy:    uint8(fy),
 	}
 	var v glyphCacheVal
-	if a.glyphCache[cIndex].key != k {
-		var ok bool
-		v, ok = a.rasterize(index, fx, fy)
-		if !ok {
+	if val, slot, ok := a.lru.get(k); ok {
+		v = val
+		a.paintOffset = a.maxh * slot
+	} else {
+		slot := a.lru.allocate(k)
+		a.paintOffset = a.maxh * slot
+		var rok bool
+		v, rok = a.rasterize(index, fx, fy)
+		if !rok {
 			return image.Rectangle{}, nil, image.Point{}, 0, false
 		}
-		a.glyphCache[cIndex] = glyphCacheEntry{k, v}
-	} else {
-		v = a.glyphCache[cIndex].val
+		a.lru.store(slot, v)
 	}
 
 	dr.Min = image.Point{
