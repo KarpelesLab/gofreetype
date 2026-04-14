@@ -1290,9 +1290,8 @@ func parse(ttf []byte, offset int) (font *Font, err error) {
 			err = FormatError("TTC offset table is too short")
 			return
 		}
-		// TODO: provide an API to select which font in a TrueType collection to return,
-		// not just the first one. This may require an API to parse a TTC's name tables,
-		// so users of this package can select the font in a TTC by name.
+		// Callers who want a font other than index 0 in a TTC should use
+		// ParseIndex / NumFonts. Bare Parse picks the first font.
 		offset = int(u32(ttf, offset))
 		if offset <= 0 || offset > len(ttf) {
 			err = FormatError("bad TTC offset")
