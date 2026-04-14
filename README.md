@@ -1,5 +1,10 @@
 # gofreetype
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/KarpelesLab/gofreetype.svg)](https://pkg.go.dev/github.com/KarpelesLab/gofreetype)
+[![CI](https://github.com/KarpelesLab/gofreetype/actions/workflows/ci.yml/badge.svg)](https://github.com/KarpelesLab/gofreetype/actions/workflows/ci.yml)
+[![Coverage Status](https://coveralls.io/repos/github/KarpelesLab/gofreetype/badge.svg?branch=master)](https://coveralls.io/github/KarpelesLab/gofreetype?branch=master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/KarpelesLab/gofreetype)](https://goreportcard.com/report/github.com/KarpelesLab/gofreetype)
+
 A pure-Go font engine aiming at feature parity with the C
 [FreeType](https://freetype.org/) library. Originally forked from
 [github.com/golang/freetype](https://github.com/golang/freetype), extended
